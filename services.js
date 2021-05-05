@@ -2,7 +2,7 @@ module.exports =
 
 [{
 	name: "web",
-	repo: "https://github.com/sharelatex/web-sharelatex.git",
+	repo: "https://github.com/robol/web.git",
 	version: "master"
 }, {
 	name: "real-time",
