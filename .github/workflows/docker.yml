@@ -23,5 +23,4 @@ jobs:
       - name: Push to Docker Hub
         run: |
           sudo docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          sudo docker push -a robol/sharelatex-base
           sudo docker push -a robol/sharelatex
