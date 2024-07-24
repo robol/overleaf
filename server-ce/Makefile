@@ -12,7 +12,7 @@ export OVERLEAF_TAG ?= sharelatex/sharelatex:$(BRANCH_NAME)-$(MONOREPO_REVISION)
 
 all: build-base build-community
 
-build-base:
+build-base: Dockerfile-base
 	cp .dockerignore $(MONOREPO_ROOT)
 	docker build \
 	  --build-arg BUILDKIT_INLINE_CACHE=1 \
@@ -25,7 +25,7 @@ build-base:
 	  $(MONOREPO_ROOT)
 
 
-build-community:
+build-community: Dockerfile
 	cp .dockerignore $(MONOREPO_ROOT)
 	docker build \
 	  --build-arg BUILDKIT_INLINE_CACHE=1 \

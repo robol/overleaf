@@ -25,6 +25,7 @@ const bearerTokenMiddleware = require('express-bearer-token')
 
 const passport = require('passport')
 const LocalStrategy = require('passport-local').Strategy
+const OAuth2Strategy = require('passport-oauth2');
 
 const oneDayInMilliseconds = 86400000
 const ReferalConnect = require('../Features/Referal/ReferalConnect')
@@ -216,6 +217,18 @@ passport.use(
     },
     AuthenticationController.doPassportLogin
   )
+)
+// OAuth2 support
+passport.use(
+  new OAuth2Strategy({
+    authorizationURL: process.env.OAUTH2_AUTHORIZE_URL,
+    tokenURL: process.env.OAUTH2_TOKEN_URL,
+    clientID: process.env.OAUTH2_CLIENT_ID,
+    clientSecret: process.env.OAUTH2_CLIENT_SECRET,
+    callbackURL: process.env.OVERLEAF_SITE_URL + "/oauth2/callback",
+    scope: 'openid'
+  },
+  AuthenticationController.doOAuth2PassportLogin)
 )
 passport.serializeUser(AuthenticationController.serializeUser)
 passport.deserializeUser(AuthenticationController.deserializeUser)

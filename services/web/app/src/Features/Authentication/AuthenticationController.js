@@ -9,6 +9,8 @@ const querystring = require('querystring')
 const Settings = require('@overleaf/settings')
 const basicAuth = require('basic-auth')
 const tsscmp = require('tsscmp')
+const request = require('request');
+const { User } = require('../../models/User')
 const UserHandler = require('../User/UserHandler')
 const UserSessionsManager = require('../User/UserSessionsManager')
 const Analytics = require('../Analytics/AnalyticsManager')
@@ -135,6 +137,13 @@ const AuthenticationController = {
     )(req, res, next)
   },
 
+  oAuth2PassportLogin(req, res, next) {
+    console.log("oauth2PassportLogin")
+    const redir = AuthenticationController.getRedirectFromSession(req) || '/project';
+    console.log(redir)
+    res.redirect(redir);
+  },
+
   async _finishLoginAsync(user, req, res) {
     if (user === false) {
       return AsyncFormHelper.redirect(req, res, '/login')
@@ -196,6 +205,46 @@ const AuthenticationController = {
     AuthenticationController._finishLoginAsync(user, req, res).catch(err =>
       next(err)
     )
+  },
+
+  doOAuth2PassportLogin(accessToken, refreshToken, profile, cb) {
+    console.log(cb)
+    var req = request.get({
+      url: process.env.OAUTH2_USERINFO_URL,
+      headers: {
+        'Authorization': 'Bearer ' + accessToken
+      }
+    }, function (err, response, data) {
+        console.log(data)
+        const openid_profile = JSON.parse(data);
+
+        const email = openid_profile.email;
+        let cn_pieces = openid_profile.name.split(' ');
+        let first_name = cn_pieces[0];
+        let last_name = cn_pieces.slice(1).join(' ');
+
+        User.findOne({ email: email }, function(err, user) {
+          if (err || user) {
+            console.log(err)
+            cb(err, user)
+          }
+          else {
+            console.log("Creating user")
+
+            User.create({
+              email: email,
+              first_name: first_name,
+              last_name: last_name,
+              password: require("crypto").randomBytes(32).toString("hex"),
+              'emails.0.confirmedAt': Date.now(),
+              'emails.0.email': email,
+              'emails.0.reversedHostname': email.split('@')[1].split("").reverse().join("")
+            }, function (err, user) {
+              cb(err, user)
+            })
+          }
+      })
+    })
   },
 
   doPassportLogin(req, username, password, done) {
@@ -401,7 +450,7 @@ const AuthenticationController = {
     return expressify(middleware)
   },
 
-  _globalLoginWhitelist: [],
+  _globalLoginWhitelist: [ '/oauth2/login', '/oauth2/callback' ],
   addEndpointToLoginWhitelist(endpoint) {
     return AuthenticationController._globalLoginWhitelist.push(endpoint)
   },

@@ -8,6 +8,7 @@ const SessionManager = require('../Authentication/SessionManager')
 const NewsletterManager = require('../Newsletter/NewsletterManager')
 const SubscriptionLocator = require('../Subscription/SubscriptionLocator')
 const _ = require('lodash')
+const passport = require('passport')
 const { expressify } = require('@overleaf/promise-utils')
 const Features = require('../../infrastructure/Features')
 const SplitTestHandler = require('../SplitTests/SplitTestHandler')
@@ -242,6 +243,15 @@ const UserPagesController = {
       title: 'login',
     })
   },
+
+  oAuth2Page(req, res) {
+    passport.authenticate('oauth2')(req, res);
+  },
+
+  oAuth2CallbackPage(req, res, next) {
+    AuthenticationController.oAuth2PassportLogin(req, res, next)
+  },
+
 
   /**
    * Landing page for users who may have received one-time login

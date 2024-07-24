@@ -40,3 +40,9 @@ block content
 									span(data-ol-inflight="idle") #{translate("login")}
 									span(hidden data-ol-inflight="pending") #{translate("logging_in")}…
 								a.pull-right(href='/user/password/reset') #{translate("forgot_your_password")}?
+						div.template-section-header()
+						h1 #{translate("Institutional login")}
+						p #{translate("UniPi users can rely on institutional credentials to login.")}
+						a(href="/oauth2/login").btn.btn-primary
+							span #{translate("Login UniPi")}
+

@@ -66,6 +66,7 @@ const {
   renderUnsupportedBrowserPage,
   unsupportedBrowserMiddleware,
 } = require('./infrastructure/UnsupportedBrowserMiddleware')
+const passport = require('passport')
 
 const logger = require('@overleaf/logger')
 const _ = require('lodash')
@@ -224,6 +225,14 @@ function initialize(webRouter, privateApiRouter, publicApiRouter) {
     CaptchaMiddleware.validateCaptcha('login'),
     AuthenticationController.passportLogin
   )
+
+  webRouter.get('/oauth2/login', UserPagesController.oAuth2Page)
+  webRouter.get('/oauth2/callback',
+    passport.authenticate('oauth2', { 
+      failureRedirect: '/login' 
+    }),
+    UserPagesController.oAuth2CallbackPage
+  );
 
   webRouter.get(
     '/compromised-password',
