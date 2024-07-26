@@ -29,5 +29,9 @@ rs.initiate()￼
   cd /overleaf/services/web; VERBOSE_LOGGING=true node scripts/history/migrate_history.js --force-clean --fix-invalid-characters --convert-large-docs-to-file
 
 
+# Pushare l'immagine
 
-
+ make -C server-ce build-base
+ make -C server-ce build-community
+ sudo docker tag sharelatex/sharelatex:main robol/sharelatex:main
+ sudo docker push robol/sharelatex:main
