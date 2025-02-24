@@ -212,6 +212,11 @@ const settings = {
     enabled: process.env.OVERLEAF_CSP_ENABLED !== 'false',
   },
 
+  rateLimit: {
+    subnetRateLimiterDisabled:
+      process.env.SUBNET_RATE_LIMITER_DISABLED !== 'false',
+  },
+
   // These credentials are used for authenticating api requests
   // between services that may need to go over public channels
   httpAuthUsers,
@@ -324,6 +329,14 @@ if (process.env.OVERLEAF_HEADER_EXTRAS != null) {
     e = error2
     console.error('could not parse OVERLEAF_HEADER_EXTRAS, not valid JSON')
   }
+}
+
+if (process.env.OVERLEAF_LOGIN_SUPPORT_TEXT != null) {
+  settings.nav.login_support_text = process.env.OVERLEAF_LOGIN_SUPPORT_TEXT
+}
+
+if (process.env.OVERLEAF_LOGIN_SUPPORT_TITLE != null) {
+  settings.nav.login_support_title = process.env.OVERLEAF_LOGIN_SUPPORT_TITLE
 }
 
 // Sending Email

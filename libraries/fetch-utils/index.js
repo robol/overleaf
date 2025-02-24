@@ -1,9 +1,13 @@
 const _ = require('lodash')
-const { Readable } = require('stream')
+const { Readable } = require('node:stream')
 const OError = require('@overleaf/o-error')
 const fetch = require('node-fetch')
-const http = require('http')
-const https = require('https')
+const http = require('node:http')
+const https = require('node:https')
+
+/**
+ * @import { Response } from 'node-fetch'
+ */
 
 /**
  * Make a request and return the parsed JSON response.
@@ -21,7 +25,7 @@ async function fetchJson(url, opts = {}) {
 async function fetchJsonWithResponse(url, opts = {}) {
   const { fetchOpts } = parseOpts(opts)
   fetchOpts.headers = fetchOpts.headers ?? {}
-  fetchOpts.headers.Accept = 'application/json'
+  fetchOpts.headers.Accept = fetchOpts.headers.Accept ?? 'application/json'
 
   const response = await performRequest(url, fetchOpts)
   if (!response.ok) {
@@ -240,8 +244,6 @@ async function discardResponseBody(response) {
 }
 
 /**
- * @typedef {import('node-fetch').Response} Response
- *
  * @param {Response} response
  */
 async function maybeGetResponseBody(response) {

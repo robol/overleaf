@@ -16,6 +16,7 @@ build-base: Dockerfile-base
 	cp .dockerignore $(MONOREPO_ROOT)
 	docker build \
 	  --build-arg BUILDKIT_INLINE_CACHE=1 \
+	  --progress=plain \
 	  --file Dockerfile-base \
 	  --pull \
 	  --cache-from $(OVERLEAF_BASE_LATEST) \
@@ -29,6 +30,7 @@ build-community: Dockerfile
 	cp .dockerignore $(MONOREPO_ROOT)
 	docker build \
 	  --build-arg BUILDKIT_INLINE_CACHE=1 \
+	  --progress=plain \
 	  --build-arg OVERLEAF_BASE_TAG \
 	  --build-arg MONOREPO_REVISION \
 	  --cache-from $(OVERLEAF_LATEST) \

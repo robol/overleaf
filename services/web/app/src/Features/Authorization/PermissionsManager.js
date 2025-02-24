@@ -64,6 +64,25 @@ function ensureCapabilityExists(capability) {
 }
 
 /**
+ * Validates an group policy object
+ *
+ * @param {Object} policies - An object containing policy names and booleans
+ *   as key-value entries.
+ * @throws {Error} if the `policies` object contains a policy that is not
+ *   registered, or the policy value is not a boolean
+ */
+function validatePolicies(policies) {
+  for (const [policy, value] of Object.entries(policies)) {
+    if (!POLICY_TO_CAPABILITY_MAP.has(policy)) {
+      throw new Error(`unknown policy: ${policy}`)
+    }
+    if (typeof value !== 'boolean') {
+      throw new Error(`policy value must be a boolean: ${policy} = ${value}`)
+    }
+  }
+}
+
+/**
  * Registers a new capability with the given name and options.
  *
  * @param {string} name - The name of the capability to register.
@@ -422,8 +441,8 @@ async function checkUserPermissions(user, requiredCapabilities) {
  * checks if all collaborators of a given project have the specified capability, including the owner
  *
  * @async
- * @function checkCollaboratorsPermission
- * @param {string} userList - An array of all user to check permissions for
+ * @function checkUserListPermissions
+ * @param {Object[]} userList - An array of all user to check permissions for
  * @param {Array} capabilities - The list of the capabilities to check permission for.
  * @returns {Promise<boolean>} - A promise that resolves to `true` if all collaborators have the specified capability, otherwise `false`.
  */
@@ -439,6 +458,7 @@ async function checkUserListPermissions(userList, capabilities) {
 }
 
 module.exports = {
+  validatePolicies,
   registerCapability,
   registerPolicy,
   registerAllowedProperty,

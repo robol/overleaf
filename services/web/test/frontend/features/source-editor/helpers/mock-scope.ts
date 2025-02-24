@@ -41,10 +41,12 @@ export const mockScope = (content?: string) => {
                 {
                   _id: figureId,
                   name: 'frog.jpg',
+                  hash: '42',
                 },
                 {
                   _id: 'fake-figure-id',
                   name: 'unicorn.png',
+                  hash: '43',
                 },
               ],
             },
@@ -60,6 +62,7 @@ export const mockScope = (content?: string) => {
     },
     permissions: {
       comment: true,
+      trackedWrite: true,
       write: true,
     },
     reviewPanel: {

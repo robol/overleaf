@@ -2,7 +2,6 @@
   display: flex;
   height: 100%;
   flex-flow: column nowrap;
-  flex-wrap: nowrap;
 
   .row:first-child {
     flex-grow: 1; /* fill vertical space so notifications are pushed to bottom */
@@ -18,63 +17,30 @@
   padding: 0 var(--spacing-02);
 }
 
-.project-list-react {
-  body > &.content {
-    padding-top: $header-height;
-    padding-bottom: 0;
-    min-height: calc(100vh - #{$header-height});
-    display: flex;
-    flex-direction: column;
-  }
-
-  .project-list-wrapper {
-    display: flex;
-    align-items: stretch;
-    width: 100%;
-    min-height: calc(100vh - #{$header-height});
+#project-list-root {
+  .user-notifications ul {
+    margin-bottom: 0;
   }
 
   .project-list-sidebar-wrapper-react {
-    position: relative;
-    background-color: var(--bg-dark-secondary);
-    flex: 0 0 15%;
-    min-height: calc(100vh - #{$header-height});
-    max-width: 320px;
-    min-width: 200px;
+    button {
+      white-space: normal;
+      word-wrap: anywhere;
 
-    .project-list-sidebar-subwrapper {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
+      // prevents buttons from expanding sidebar width
+    }
 
-      .project-list-sidebar-react {
-        flex-grow: 1;
-        padding: var(--spacing-08) var(--spacing-06);
-        -ms-overflow-style: -ms-autohiding-scrollbar;
-        padding-top: var(--spacing-08);
-        padding-bottom: var(--spacing-08);
-        color: var(--neutral-40);
+    .new-project-dropdown {
+      width: 100%;
 
-        .small {
-          color: var(--neutral-40);
-        }
-
-        button {
-          white-space: normal;
-          word-wrap: anywhere;
-
-          // prevents buttons from expanding sidebar width
-        }
-
-        > .dropdown {
-          width: 100%;
-
-          .new-project-button {
-            width: 100%;
-          }
-        }
+      .new-project-button {
+        width: 100%;
       }
     }
+  }
+
+  .new-project-button.dropdown-toggle::after {
+    display: none;
   }
 
   .project-list-welcome-wrapper {
@@ -110,7 +76,6 @@
         justify-content: space-between;
         padding: var(--spacing-08) var(--spacing-06);
         margin: var(--spacing-05) 0;
-        width: 280px;
         height: 200px;
         position: relative;
         cursor: pointer;
@@ -125,9 +90,23 @@
         }
 
         .welcome-message-card-img {
+          max-width: 100%;
+
           @include media-breakpoint-up(lg) {
             margin-bottom: var(--spacing-07);
           }
+        }
+      }
+
+      .welcome-message-card-item {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        width: 280px;
+
+        @include media-breakpoint-up(lg) {
+          flex: 0 1 312px;
+          width: auto;
         }
       }
 
@@ -151,21 +130,75 @@
         &,
         &:hover {
           text-decoration: none;
-          color: $neutral-60;
+          color: var(--bs-body-color);
         }
       }
     }
   }
 
-  .project-list-main-react {
-    flex: 1;
-    overflow-x: hidden;
-    padding: var(--spacing-08) var(--spacing-06);
+  .project-list-header-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--spacing-05);
+    min-height: 36px;
+  }
+
+  .project-list-title {
+    min-width: 0;
+    color: $content-secondary;
+
+    @include heading-sm;
+
+    font-weight: bold;
+  }
+
+  .project-tools {
+    flex-shrink: 0;
+    margin-left: auto;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+  }
+
+  @include media-breakpoint-down(md) {
+    .project-tools {
+      float: left;
+      margin-left: initial;
+    }
+  }
+
+  .projects-toolbar {
+    display: flex;
+    align-items: center;
+
+    .dropdown,
+    .dropdown-toggle {
+      max-width: 100%;
+    }
+
+    .dropdown {
+      min-width: 0;
+    }
+  }
+
+  .projects-sort-dropdown {
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+
+  .project-menu-item-edit-btn {
+    position: absolute;
+    top: 0;
+    right: var(--spacing-09);
+    width: initial;
+    background-color: transparent;
+  }
+
+  .project-menu-item-tag-name {
+    padding-right: var(--spacing-13);
   }
 
   ul.project-list-filters {
-    margin: var(--spacing-05) calc(-1 * var(--spacing-06));
-
     .subdued {
       color: var(--content-disabled);
     }
@@ -175,24 +208,9 @@
       position: relative;
 
       > button {
-        width: 100%;
-        font-weight: normal;
-        text-align: left;
-        color: var(--white);
-        background-color: transparent;
-        border-radius: unset;
-        border: none;
-        border-bottom: solid 1px transparent;
-        padding: var(--spacing-03) var(--spacing-06);
-
-        &:hover {
-          background-color: var(--neutral-70);
-          text-decoration: none;
-        }
-
+        &:hover,
         &:focus {
           text-decoration: none;
-          outline: none;
         }
       }
 
@@ -202,17 +220,18 @@
       }
     }
 
+    .dropdown-header {
+      @include body-sm;
+
+      padding: var(--spacing-05) var(--spacing-06);
+      text-transform: uppercase;
+    }
+
     > li.active {
       border-radius: 0;
 
       > button {
-        background-color: var(--neutral-90);
         font-weight: 700;
-        color: var(--white);
-
-        .subdued {
-          color: var(--white);
-        }
       }
     }
 
@@ -225,14 +244,10 @@
     }
 
     > li.tag {
-      &.active {
-        .tag-menu > button {
-          color: var(--white);
-          border-color: var(--white);
-
-          &:hover {
-            background-color: var(--neutral-90);
-          }
+      &.active,
+      &:focus-within {
+        .tag-menu {
+          display: block;
         }
       }
 
@@ -246,18 +261,8 @@
       }
 
       &:hover {
-        &:not(.active) {
-          background-color: var(--neutral-70);
-        }
-
         .tag-menu {
           display: block;
-        }
-      }
-
-      &:not(.active) {
-        .tag-menu > a:hover {
-          background-color: var(--neutral-90);
         }
       }
 
@@ -283,20 +288,14 @@
 
     .tag-menu {
       button.dropdown-toggle {
-        border: 1px solid var(--white);
-        border-radius: var(--border-radius-base);
         background-color: transparent;
-        color: var(--white);
-        display: block;
-        width: 16px;
-        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         position: relative;
-        padding: var(--spacing-01) var(--spacing-03);
 
         &::after {
-          position: absolute;
-          top: 4px;
-          left: -2px;
+          margin: 0;
         }
       }
 
@@ -321,7 +320,7 @@
         font-weight: normal;
 
         &:hover {
-          color: var(--white);
+          color: var(--content-primary-dark);
           background-color: var(--bg-accent-01);
         }
 
@@ -330,27 +329,6 @@
         }
       }
     }
-  }
-}
-
-.add-affiliation-mobile-wrapper {
-  padding: var(--spacing-07) 0;
-}
-
-.add-affiliation {
-  .progress {
-    height: var(--spacing-05);
-    margin-bottom: var(--spacing-03);
-  }
-
-  p {
-    margin-bottom: var(--spacing-03);
-  }
-
-  &.is-mobile p {
-    @include body-xs;
-
-    white-space: normal;
   }
 
   .project-dash-table {
@@ -426,6 +404,18 @@
       font-size: $font-size-sm;
 
       @include text-truncate;
+    }
+
+    .dash-cell-tag,
+    .clone-project-tag {
+      .badge-tag {
+        margin-top: var(--spacing-06);
+        margin-bottom: var(--spacing-06);
+
+        &:first-child {
+          margin-left: initial !important;
+        }
+      }
     }
 
     @include media-breakpoint-up(sm) {
@@ -554,6 +544,15 @@
         position: relative;
         display: flex;
         flex-direction: column;
+
+        td {
+          padding-top: var(--spacing-02);
+          padding-bottom: var(--spacing-02);
+        }
+
+        td:not(.dash-cell-actions) {
+          padding-right: 55px;
+        }
       }
 
       .dash-cell-name,
@@ -573,19 +572,23 @@
       }
 
       .dropdown-table-button-toggle {
-        padding: var(--spacing-04);
-        font-size: 0;
-        line-height: 1;
-        border-radius: 50%;
-        color: var(--content-primary);
-        background-color: transparent;
+        @include action-button;
 
-        &:hover,
-        &:active {
-          background-color: rgba($neutral-90, 0.08);
-        }
+        padding: var(--spacing-04);
       }
     }
+  }
+}
+
+.current-plan {
+  a.current-plan-label {
+    text-decoration: none;
+    color: $content-secondary;
+  }
+
+  .current-plan-label-icon {
+    vertical-align: text-bottom;
+    color: var(--bg-info-01);
   }
 }
 
@@ -601,6 +604,8 @@
       @extend .btn;
       @extend .btn-lg;
       @extend .btn-primary;
+
+      margin-bottom: var(--spacing-07);
     }
   }
 }
@@ -627,9 +632,6 @@
 }
 
 .project-list-sidebar-survey-wrapper {
-  position: sticky;
-  bottom: 0;
-
   .survey-notification {
     font-size: var(--font-size-02);
 
@@ -639,9 +641,6 @@
   }
 
   @include media-breakpoint-down(md) {
-    position: static;
-    margin-top: var(--spacing-05);
-
     .survey-notification {
       font-size: unset;
 
@@ -660,14 +659,39 @@
   margin-bottom: var(--spacing-05);
 }
 
+.clone-project-tag {
+  display: flex;
+
+  .form-label {
+    margin-top: var(--spacing-01);
+  }
+}
+
 form.project-search {
   .form-group {
     margin-bottom: 0;
   }
 }
 
-.project-search-clear-btn {
-  @include reset-button;
+.add-affiliation-mobile-wrapper {
+  padding: var(--spacing-07) 0;
+}
+
+.add-affiliation {
+  .progress {
+    height: var(--spacing-05);
+    margin-bottom: var(--spacing-03);
+  }
+
+  p {
+    margin-bottom: var(--spacing-03);
+  }
+
+  &.is-mobile p {
+    @include body-xs;
+
+    white-space: normal;
+  }
 }
 
 .color-picker-item {
@@ -696,7 +720,7 @@ form.project-search {
       margin: 3px; // it's centered, no matching spacing variable
       font-weight: bold;
 
-      @include media-breakpoint-down(sm) {
+      @include media-breakpoint-down(md) {
         margin: 5px; // it's centered, no matching spacing variable
       }
     }
@@ -706,7 +730,7 @@ form.project-search {
       margin: 3px;
       font-weight: bold;
 
-      @include media-breakpoint-down(sm) {
+      @include media-breakpoint-down(md) {
         margin: 5px;
       }
     }
@@ -714,18 +738,18 @@ form.project-search {
 
   .color-picker-item-icon {
     margin: 3px; // it's centered, no matching spacing variable
-    color: var(--white);
+    color: var(--content-primary-dark);
     font-weight: bold;
   }
 
-  @include media-breakpoint-down(sm) {
+  @include media-breakpoint-down(md) {
     height: 32px;
     width: 32px;
     margin: var(--spacing-08);
 
     .color-picker-item-icon {
       margin: 5px; // it's centered, no matching spacing variable
-      color: var(--white);
+      color: var(--content-primary-dark);
     }
   }
 }

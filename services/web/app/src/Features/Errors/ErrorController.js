@@ -65,10 +65,22 @@ async function handleError(error, req, res, next) {
       res.status(400)
       plainTextResponse(res, error.message)
     }
+  } else if (error instanceof Errors.DuplicateNameError) {
+    req.logger.setLevel('warn')
+    if (shouldSendErrorResponse) {
+      res.status(400)
+      plainTextResponse(res, error.message)
+    }
   } else if (error instanceof Errors.InvalidNameError) {
     req.logger.setLevel('warn')
     if (shouldSendErrorResponse) {
       res.status(400)
+      plainTextResponse(res, error.message)
+    }
+  } else if (error instanceof Errors.NonDeletableEntityError) {
+    req.logger.setLevel('warn')
+    if (shouldSendErrorResponse) {
+      res.status(422)
       plainTextResponse(res, error.message)
     }
   } else if (error instanceof Errors.SAMLSessionDataMissing) {

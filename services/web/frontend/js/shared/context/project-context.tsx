@@ -1,7 +1,8 @@
-import { FC, createContext, useContext, useMemo } from 'react'
+import { FC, createContext, useContext, useMemo, useState } from 'react'
 import useScopeValue from '../hooks/use-scope-value'
 import getMeta from '@/utils/meta'
 import { ProjectContextValue } from './types/project-context'
+import { ProjectSnapshot } from '@/infrastructure/project-snapshot'
 
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined)
 
@@ -40,7 +41,10 @@ export const ProjectProvider: FC = ({ children }) => {
     publicAccesLevel: publicAccessLevel,
     owner,
     trackChangesState,
+    mainBibliographyDoc_id: mainBibliographyDocId,
   } = project || projectFallback
+
+  const [projectSnapshot] = useState(() => new ProjectSnapshot(_id))
 
   const tags = useMemo(
     () =>
@@ -63,6 +67,8 @@ export const ProjectProvider: FC = ({ children }) => {
       owner,
       tags,
       trackChangesState,
+      mainBibliographyDocId,
+      projectSnapshot,
     }
   }, [
     _id,
@@ -76,6 +82,8 @@ export const ProjectProvider: FC = ({ children }) => {
     owner,
     tags,
     trackChangesState,
+    mainBibliographyDocId,
+    projectSnapshot,
   ])
 
   return (

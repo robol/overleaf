@@ -5,7 +5,7 @@ const { setTimeout } = require('timers/promises')
 const pProps = require('p-props')
 const logger = require('@overleaf/logger')
 const { expressify } = require('@overleaf/promise-utils')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 const ProjectDeleter = require('./ProjectDeleter')
 const ProjectDuplicator = require('./ProjectDuplicator')
 const ProjectCreationHandler = require('./ProjectCreationHandler')
@@ -37,19 +37,23 @@ const FeaturesUpdater = require('../Subscription/FeaturesUpdater')
 const SpellingHandler = require('../Spelling/SpellingHandler')
 const { hasAdminAccess } = require('../Helpers/AdminAuthorizationHelper')
 const InstitutionsFeatures = require('../Institutions/InstitutionsFeatures')
+const InstitutionsGetter = require('../Institutions/InstitutionsGetter')
 const ProjectAuditLogHandler = require('./ProjectAuditLogHandler')
 const PublicAccessLevels = require('../Authorization/PublicAccessLevels')
 const TagsHandler = require('../Tags/TagsHandler')
 const TutorialHandler = require('../Tutorial/TutorialHandler')
+const OnboardingDataCollectionManager = require('../OnboardingDataCollection/OnboardingDataCollectionManager')
 const UserUpdater = require('../User/UserUpdater')
-const { checkUserPermissions } =
-  require('../Authorization/PermissionsManager').promises
+const Modules = require('../../infrastructure/Modules')
 const UserGetter = require('../User/UserGetter')
+const {
+  isStandaloneAiAddOnPlanCode,
+} = require('../Subscription/RecurlyEntities')
+const SubscriptionController = require('../Subscription/SubscriptionController.js')
+const { formatCurrency } = require('../../util/currency')
 
 /**
- * @typedef {import("./types").GetProjectsRequest} GetProjectsRequest
- * @typedef {import("./types").GetProjectsResponse} GetProjectsResponse
- * @typedef {import("./types").Project} Project
+ * @import { GetProjectsRequest, GetProjectsResponse, Project } from "./types"
  */
 
 const _ProjectController = {
@@ -90,6 +94,13 @@ const _ProjectController = {
 
     if (req.body.rootDocId != null) {
       await EditorController.promises.setRootDoc(projectId, req.body.rootDocId)
+    }
+
+    if (req.body.mainBibliographyDocId != null) {
+      await EditorController.promises.setMainBibliographyDoc(
+        projectId,
+        req.body.mainBibliographyDocId
+      )
     }
 
     res.sendStatus(204)
@@ -322,23 +333,30 @@ const _ProjectController = {
     }
 
     const splitTests = [
-      !anonymous && 'bib-file-tpr-prompt',
       'compile-log-events',
+      'external-socket-heartbeat',
+      'full-project-search',
       'null-test-share-modal',
       'paywall-cta',
       'pdf-caching-cached-url-lookup',
       'pdf-caching-mode',
       'pdf-caching-prefetch-large',
       'pdf-caching-prefetching',
-      'pdf-presentation-mode',
-      'pdfjs-40',
-      'personal-access-token',
       'revert-file',
+      'revert-project',
       'review-panel-redesign',
+      !anonymous && 'ro-mirror-on-client',
       'track-pdf-download',
       !anonymous && 'writefull-oauth-promotion',
-      'ieee-stylesheet',
       'write-and-cite',
+      'write-and-cite-ars',
+      'default-visual-for-beginners',
+      'hotjar',
+      'ai-add-on',
+      'reviewer-role',
+      'papers-integration',
+      'editor-redesign',
+      'paywall-change-compile-timeout',
     ].filter(Boolean)
 
     const getUserValues = async userId =>
@@ -347,7 +365,7 @@ const _ProjectController = {
           user: (async () => {
             const user = await User.findById(
               userId,
-              'email first_name last_name referal_id signUpDate featureSwitches features featuresEpoch refProviders alphaProgram betaProgram isAdmin ace labsProgram completedTutorials writefull'
+              'email first_name last_name referal_id signUpDate featureSwitches features featuresEpoch refProviders alphaProgram betaProgram isAdmin ace labsProgram completedTutorials writefull aiErrorAssistant'
             ).exec()
             // Handle case of deleted user
             if (!user) {
@@ -370,6 +388,12 @@ const _ProjectController = {
               logger.error({ err, userId }, 'failed to get institution licence')
               return false
             }),
+          affiliations: InstitutionsGetter.promises
+            .getCurrentAffiliations(userId)
+            .catch(err => {
+              logger.error({ err, userId }, 'failed to get institution licence')
+              return false
+            }),
           subscription:
             SubscriptionLocator.promises.getUsersSubscription(userId),
           isTokenMember: CollaboratorsGetter.promises.userIsTokenMember(
@@ -381,6 +405,20 @@ const _ProjectController = {
               userId,
               projectId
             ),
+          usedLatex: OnboardingDataCollectionManager.getOnboardingDataValue(
+            userId,
+            'usedLatex'
+          ).catch(err => {
+            logger.error({ err, userId })
+            return null
+          }),
+          odcRole: OnboardingDataCollectionManager.getOnboardingDataValue(
+            userId,
+            'role'
+          ).catch(err => {
+            logger.error({ err, userId })
+            return null
+          }),
         })
       )
     const splitTestAssignments = {}
@@ -404,11 +442,16 @@ const _ProjectController = {
           tokens: 1,
           tokenAccessReadAndWrite_refs: 1, // used for link sharing analytics
           collaberator_refs: 1, // used for link sharing analytics
+          pendingEditor_refs: 1, // used for link sharing analytics
+          reviewer_refs: 1,
         }),
         userIsMemberOfGroupSubscription: sessionUser
-          ? LimitationsManager.promises.userIsMemberOfGroupSubscription(
-              sessionUser
-            )
+          ? (async () =>
+              (
+                await LimitationsManager.promises.userIsMemberOfGroupSubscription(
+                  sessionUser
+                )
+              ).isMember)()
           : false,
         _flushToTpds:
           TpdsProjectFlusher.promises.flushProjectToTpdsIfNeeded(projectId),
@@ -428,31 +471,9 @@ const _ProjectController = {
         subscription,
         isTokenMember,
         isInvitedMember,
+        usedLatex,
+        odcRole,
       } = userValues
-
-      // check if a user is not in the writefull-oauth-promotion, in which case they may be part of the auto trial group
-      if (
-        !anonymous &&
-        splitTestAssignments['writefull-oauth-promotion']?.variant === 'default'
-      ) {
-        // since we are auto-enrolling users into writefull if they are part of the group, we only want to
-        // auto enroll (set writefull to true) if its the first time they have entered the test
-        // this ensures that they can still turn writefull off (otherwise, we would be setting writefull on every time they access their projects)
-        const { variant, metadata } =
-          await SplitTestHandler.promises.getAssignment(
-            req,
-            res,
-            'writefull-auto-load'
-          )
-        if (variant === 'enabled' && metadata?.isFirstNonDefaultAssignment) {
-          await UserUpdater.promises.updateUser(userId, {
-            $set: {
-              writefull: { enabled: true },
-            },
-          })
-          user.writefull.enabled = true
-        }
-      }
 
       const brandVariation = project?.brandVariationId
         ? await BrandVariationsHandler.promises.getBrandVariationById(
@@ -473,45 +494,43 @@ const _ProjectController = {
           anonRequestToken
         )
 
-      const linkSharingChanges =
+      const reviewerRoleAssignment =
         await SplitTestHandler.promises.getAssignmentForUser(
           project.owner_ref,
-          'link-sharing-warning'
+          'reviewer-role'
         )
-      if (linkSharingChanges?.variant === 'active') {
-        if (isTokenMember) {
-          // Check explicitly that the user is in read write token refs, while this could be inferred
-          // from the privilege level, the privilege level of token members might later be restricted
-          const isReadWriteTokenMember =
-            await CollaboratorsGetter.promises.userIsReadWriteTokenMember(
+
+      await Modules.promises.hooks.fire('enforceCollaboratorLimit', projectId)
+      if (isTokenMember) {
+        // Check explicitly that the user is in read write token refs, while this could be inferred
+        // from the privilege level, the privilege level of token members might later be restricted
+        const isReadWriteTokenMember =
+          await CollaboratorsGetter.promises.userIsReadWriteTokenMember(
+            userId,
+            projectId
+          )
+        if (isReadWriteTokenMember) {
+          // Check for an edge case where a user is both in read write token access refs but also
+          // an invited read write member. Ensure they are not redirected to the sharing updates page
+          // We could also delete the token access ref if the user is already a member of the project
+          const isInvitedReadWriteMember =
+            await CollaboratorsGetter.promises.isUserInvitedReadWriteMemberOfProject(
               userId,
               projectId
             )
-          if (isReadWriteTokenMember) {
-            // Check for an edge case where a user is both in read write token access refs but also
-            // an invited read write member. Ensure they are not redirected to the sharing updates page
-            // We could also delete the token access ref if the user is already a member of the project
-            const isInvitedReadWriteMember =
-              await CollaboratorsGetter.promises.isUserInvitedReadWriteMemberOfProject(
-                userId,
-                projectId
-              )
-            if (!isInvitedReadWriteMember) {
-              return res.redirect(`/project/${projectId}/sharing-updates`)
-            }
+          if (!isInvitedReadWriteMember) {
+            return res.redirect(`/project/${projectId}/sharing-updates`)
           }
         }
       }
-
-      let allowedFreeTrial = true
 
       if (privilegeLevel == null || privilegeLevel === PrivilegeLevels.NONE) {
         return res.sendStatus(401)
       }
 
-      if (subscription != null) {
-        allowedFreeTrial = false
-      }
+      const allowedFreeTrial =
+        subscription == null ||
+        isStandaloneAiAddOnPlanCode(subscription.planCode)
 
       let wsUrl = Settings.wsUrl
       let metricName = 'load-editor-ws'
@@ -555,12 +574,26 @@ const _ProjectController = {
         )
         const planLimit = ownerFeatures?.collaborators || 0
         const namedEditors = project.collaberator_refs?.length || 0
+        const pendingEditors = project.pendingEditor_refs?.length || 0
         const exceedAtLimit = planLimit > -1 && namedEditors >= planLimit
+
+        let editMode = 'edit'
+        if (privilegeLevel === PrivilegeLevels.READ_ONLY) {
+          editMode = 'view'
+        } else if (
+          project.track_changes === true ||
+          project.track_changes?.[userId] === true
+        ) {
+          editMode = 'review'
+        }
+
         const projectOpenedSegmentation = {
+          role: privilegeLevel,
+          editMode,
+          ownerId: project.owner_ref,
           projectId: project._id,
-          // temporary link sharing segmentation:
-          linkSharingWarning: linkSharingChanges?.variant,
           namedEditors,
+          pendingEditors,
           tokenEditors: project.tokenAccessReadAndWrite_refs?.length || 0,
           planLimit,
           exceedAtLimit,
@@ -596,45 +629,141 @@ const _ProjectController = {
         !Features.hasFeature('saas') ||
         (user.features && user.features.symbolPalette)
 
+      const userInNonIndividualSub =
+        userIsMemberOfGroupSubscription || userHasInstitutionLicence
+
+      const userHasPremiumSub =
+        subscription && !isStandaloneAiAddOnPlanCode(subscription.planCode)
+
       // Persistent upgrade prompts
       // in header & in share project modal
       const showUpgradePrompt =
         Features.hasFeature('saas') &&
         userId &&
-        !subscription &&
-        !userIsMemberOfGroupSubscription &&
-        !userHasInstitutionLicence
+        !userHasPremiumSub &&
+        !userInNonIndividualSub
 
-      const showPersonalAccessToken =
-        userId &&
-        (!Features.hasFeature('saas') ||
-          req.query?.personal_access_token === 'true')
+      let aiFeaturesAllowed = false
+      if (userId && Features.hasFeature('saas')) {
+        try {
+          // exit early if the user couldnt use ai anyways, since permissions checks are expensive
+          const canEditProject =
+            privilegeLevel === PrivilegeLevels.READ_AND_WRITE ||
+            privilegeLevel === PrivilegeLevels.OWNER
 
-      const optionalPersonalAccessToken =
-        userId &&
-        !showPersonalAccessToken &&
-        splitTestAssignments['personal-access-token'].variant === 'enabled' // `?personal-access-token=enabled`
+          if (canEditProject) {
+            // check permissions for user and project owner, to see if they allow AI on the project
+            const permissionsResults = await Modules.promises.hooks.fire(
+              'projectAllowsCapability',
+              project,
+              userId,
+              ['use-ai']
+            )
+            const aiAllowed = permissionsResults.every(
+              result => result === true
+            )
 
-      // still allow users to access project if we cant get their permissions, but disable AI feature
-      let canUseAi
-      try {
-        canUseAi = await checkUserPermissions(user, ['use-ai'])
-      } catch (err) {
-        canUseAi = false
+            aiFeaturesAllowed = aiAllowed
+          }
+        } catch (err) {
+          // still allow users to access project if we cant get their permissions, but disable AI feature
+          aiFeaturesAllowed = false
+        }
       }
 
-      const showAiErrorAssistant =
-        userId &&
-        Features.hasFeature('saas') &&
-        user.features?.aiErrorAssistant &&
-        canUseAi &&
-        (privilegeLevel === PrivilegeLevels.READ_AND_WRITE ||
-          privilegeLevel === PrivilegeLevels.OWNER)
+      const hasNonRecurlySubscription =
+        subscription && !subscription.recurlySubscription_id
+      const hasManuallyCollectedSubscription =
+        subscription?.collectionMethod === 'manual'
+      const cannotPurchaseAddons =
+        hasNonRecurlySubscription || hasManuallyCollectedSubscription
+      const assistantDisabled = user.aiErrorAssistant?.enabled === false // the assistant has been manually disabled by the user
+      const canUseErrorAssistant =
+        user.features?.aiErrorAssistant ||
+        (splitTestAssignments['ai-add-on']?.variant === 'enabled' &&
+          !cannotPurchaseAddons &&
+          !assistantDisabled)
+
+      let featureUsage = {}
+
+      if (Features.hasFeature('saas')) {
+        const usagesLeft = await Modules.promises.hooks.fire(
+          'remainingFeatureAllocation',
+          userId
+        )
+        usagesLeft?.forEach(usage => {
+          featureUsage = { ...featureUsage, ...usage }
+        })
+      }
+
+      let inEnterpriseCommons = false
+      const affiliations = userValues.affiliations || []
+      for (const affiliation of affiliations) {
+        inEnterpriseCommons =
+          inEnterpriseCommons || affiliation.institution?.enterpriseCommons
+      }
+
+      // check if a user has never tried writefull before (writefull.enabled will be null)
+      //  if they previously accepted writefull, or are have been already assigned to a trial, user.writefull will be true,
+      //  if they explicitly disabled it, user.writefull will be false
+      if (
+        aiFeaturesAllowed &&
+        user.writefull?.enabled === null &&
+        !userIsMemberOfGroupSubscription &&
+        !inEnterpriseCommons
+      ) {
+        const { variant } = await SplitTestHandler.promises.getAssignment(
+          req,
+          res,
+          'writefull-auto-account-creation'
+        )
+
+        if (variant === 'enabled') {
+          await UserUpdater.promises.updateUser(userId, {
+            $set: {
+              writefull: { enabled: true, autoCreatedAccount: true },
+            },
+          })
+          user.writefull.enabled = true
+          user.writefull.autoCreatedAccount = true
+        } else {
+          const { variant } = await SplitTestHandler.promises.getAssignment(
+            req,
+            res,
+            'writefull-auto-load'
+          )
+          if (variant === 'enabled') {
+            await UserUpdater.promises.updateUser(userId, {
+              $set: {
+                writefull: { enabled: true },
+              },
+            })
+            user.writefull.enabled = true
+            user.writefull.firstAutoLoad = true
+          }
+        }
+      }
 
       const template =
         detachRole === 'detached'
           ? 'project/ide-react-detached'
           : 'project/ide-react'
+
+      let chatEnabled
+      if (Features.hasFeature('saas')) {
+        chatEnabled =
+          Features.hasFeature('chat') && req.capabilitySet.has('chat')
+      } else {
+        chatEnabled = Features.hasFeature('chat')
+      }
+
+      const isPaywallChangeCompileTimeoutEnabled =
+        splitTestAssignments['paywall-change-compile-timeout']?.variant ===
+        'enabled'
+
+      const paywallPlans =
+        isPaywallChangeCompileTimeoutEnabled &&
+        (await ProjectController._getPaywallPlansPrices(req, res))
 
       res.render(template, {
         title: project.name,
@@ -650,11 +779,15 @@ const _ProjectController = {
           referal_id: user.referal_id,
           signUpDate: user.signUpDate,
           allowedFreeTrial,
+          hasRecurlySubscription: subscription?.recurlySubscription_id != null,
           featureSwitches: user.featureSwitches,
           features: user.features,
+          featureUsage,
           refProviders: _.mapValues(user.refProviders, Boolean),
           writefull: {
-            enabled: Boolean(user.writefull?.enabled),
+            enabled: Boolean(user.writefull?.enabled && aiFeaturesAllowed),
+            autoCreatedAccount: Boolean(user.writefull?.autoCreatedAccount),
+            firstAutoLoad: Boolean(user.writefull?.firstAutoLoad),
           },
           alphaProgram: user.alphaProgram,
           betaProgram: user.betaProgram,
@@ -673,6 +806,8 @@ const _ProjectController = {
           fontFamily: user.ace.fontFamily || 'lucida',
           lineHeight: user.ace.lineHeight || 'normal',
           overallTheme: user.ace.overallTheme,
+          mathPreview: user.ace.mathPreview,
+          referencesSearchMode: user.ace.referencesSearchMode,
         },
         privilegeLevel,
         anonymous,
@@ -683,6 +818,12 @@ const _ProjectController = {
           isTokenMember,
           isInvitedMember
         ),
+        chatEnabled,
+        projectHistoryBlobsEnabled: Features.hasFeature(
+          'project-history-blobs'
+        ),
+        roMirrorOnClientNoLocalStorage:
+          Settings.adminOnlyLogin || project.name.startsWith('Debug: '),
         languages: Settings.languages,
         learnedWords,
         editorThemes: THEME_LIST,
@@ -695,27 +836,69 @@ const _ProjectController = {
         wsUrl,
         showSupport: Features.hasFeature('support'),
         showTemplatesServerPro,
-        pdfjsVariant: splitTestAssignments['pdfjs-40'].variant,
         debugPdfDetach,
         showSymbolPalette,
         symbolPaletteAvailable: Features.hasFeature('symbol-palette'),
-        showAiErrorAssistant,
+        userRestrictions: Array.from(req.userRestrictions || []),
+        showAiErrorAssistant: aiFeaturesAllowed && canUseErrorAssistant,
         detachRole,
         metadata: { viewport: false },
         showUpgradePrompt,
         fixedSizeDocument: true,
         useOpenTelemetry: Settings.useOpenTelemetryClient,
-        showPersonalAccessToken,
-        optionalPersonalAccessToken,
         hasTrackChangesFeature: Features.hasFeature('track-changes'),
         projectTags,
-        linkSharingWarning: linkSharingChanges.variant === 'active',
+        usedLatex:
+          // only use the usedLatex value if the split test is enabled
+          splitTestAssignments['default-visual-for-beginners']?.variant ===
+          'enabled'
+            ? usedLatex
+            : null,
+        odcRole:
+          // only use the ODC role value if the split test is enabled
+          splitTestAssignments['paywall-change-compile-timeout']?.variant ===
+          'enabled'
+            ? odcRole
+            : null,
+        isSaas: Features.hasFeature('saas'),
+        shouldLoadHotjar: splitTestAssignments.hotjar?.variant === 'enabled',
+        isReviewerRoleEnabled:
+          reviewerRoleAssignment?.variant === 'enabled' ||
+          Object.keys(project.reviewer_refs || {}).length > 0,
+        isPaywallChangeCompileTimeoutEnabled,
+        paywallPlans,
       })
       timer.done()
     } catch (err) {
       OError.tag(err, 'error getting details for project page')
       return next(err)
     }
+  },
+
+  async _getPaywallPlansPrices(
+    req,
+    res,
+    paywallPlans = ['collaborator', 'student']
+  ) {
+    const plansData = {}
+
+    const locale = req.i18n.language
+    const { currency } = await SubscriptionController.getRecommendedCurrency(
+      req,
+      res
+    )
+
+    paywallPlans.forEach(plan => {
+      const planPrice = Settings.localizedPlanPricing[currency][plan].monthly
+      const formattedPlanPrice = formatCurrency(
+        planPrice,
+        currency,
+        locale,
+        true
+      )
+      plansData[plan] = formattedPlanPrice
+    })
+    return plansData
   },
 
   async _refreshFeatures(req, user) {
@@ -780,8 +963,14 @@ const _ProjectController = {
   },
   _buildProjectList(allProjects, userId) {
     let project
-    const { owned, readAndWrite, readOnly, tokenReadAndWrite, tokenReadOnly } =
-      allProjects
+    const {
+      owned,
+      review,
+      readAndWrite,
+      readOnly,
+      tokenReadAndWrite,
+      tokenReadOnly,
+    } = allProjects
     const projects = []
     for (project of owned) {
       projects.push(
@@ -799,6 +988,16 @@ const _ProjectController = {
         ProjectController._buildProjectViewModel(
           project,
           'readWrite',
+          Sources.INVITE,
+          userId
+        )
+      )
+    }
+    for (project of review) {
+      projects.push(
+        ProjectController._buildProjectViewModel(
+          project,
+          'review',
           Sources.INVITE,
           userId
         )
@@ -999,12 +1198,12 @@ const ProjectController = {
   ),
   updateProjectSettings: expressify(_ProjectController.updateProjectSettings),
   userProjectsJson: expressify(_ProjectController.userProjectsJson),
-
   _buildProjectList: _ProjectController._buildProjectList,
   _buildProjectViewModel: _ProjectController._buildProjectViewModel,
   _injectProjectUsers: _ProjectController._injectProjectUsers,
   _isInPercentageRollout: _ProjectController._isInPercentageRollout,
   _refreshFeatures: _ProjectController._refreshFeatures,
+  _getPaywallPlansPrices: _ProjectController._getPaywallPlansPrices,
 }
 
 module.exports = ProjectController

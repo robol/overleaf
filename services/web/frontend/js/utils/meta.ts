@@ -20,12 +20,14 @@ import {
   Institution as InstitutionType,
   Notification as NotificationType,
   PendingGroupSubscriptionEnrollment,
+  USGovBannerVariant,
 } from '../../../types/project/dashboard/notification'
 import { Survey } from '../../../types/project/dashboard/survey'
 import { GetProjectsResponseBody } from '../../../types/project/dashboard/api'
 import { Tag } from '../../../app/src/Features/Tags/types'
 import { Institution } from '../../../types/institution'
 import {
+  GroupPolicy,
   ManagedGroupSubscription,
   MemberGroupSubscription,
 } from '../../../types/subscription/dashboard/subscription'
@@ -46,18 +48,23 @@ import { PasswordStrengthOptions } from '../../../types/password-strength-option
 import { Subscription as ProjectDashboardSubscription } from '../../../types/project/dashboard/subscription'
 import { ThirdPartyIds } from '../../../types/third-party-ids'
 import { Publisher } from '../../../types/subscription/dashboard/publisher'
-import _ from 'lodash'
-import { isSplitTestEnabled } from '@/utils/splitTestUtils'
-
+import { SubscriptionChangePreview } from '../../../types/subscription/subscription-change-preview'
+import { DefaultNavbarMetadata } from '@/features/ui/components/types/default-navbar-metadata'
+import { FooterMetadata } from '@/features/ui/components/types/footer-metadata'
 export interface Meta {
   'ol-ExposedSettings': ExposedSettings
   'ol-allInReconfirmNotificationPeriods': UserEmailData[]
+  'ol-allowedExperiments': string[]
   'ol-allowedImageNames': AllowedImageName[]
   'ol-anonymous': boolean
+  'ol-baseAssetPath': string
   'ol-bootstrapVersion': 3 | 5
   'ol-brandVariation': Record<string, any>
 
   // dynamic keys based on permissions
+  'ol-canUseAddSeatsFeature': boolean
+  'ol-canUseFlexibleLicensing': boolean
+  'ol-canUseFlexibleLicensingForConsolidatedPlans': boolean
   'ol-cannot-add-secondary-email': boolean
   'ol-cannot-change-password': boolean
   'ol-cannot-delete-own-account': boolean
@@ -67,6 +74,8 @@ export interface Meta {
   'ol-cannot-link-other-third-party-sso': boolean
   'ol-cannot-reactivate-subscription': boolean
   'ol-cannot-use-ai': boolean
+  'ol-chatEnabled': boolean
+  'ol-compilesUserContentDomain': string
   'ol-countryCode': PricingFormState['country']
   'ol-couponCode': PricingFormState['coupon']
   'ol-createdAt': Date
@@ -76,6 +85,7 @@ export interface Meta {
   'ol-currentUrl': string
   'ol-debugPdfDetach': boolean
   'ol-detachRole': 'detached' | 'detacher' | ''
+  'ol-dictionariesRoot': 'string'
   'ol-dropbox': { error: boolean; registered: boolean }
   'ol-editorThemes': string[]
   'ol-email': string
@@ -83,15 +93,19 @@ export interface Meta {
   'ol-error': { name: string } | undefined
   'ol-expired': boolean
   'ol-features': Features
+  'ol-footer': FooterMetadata
   'ol-fromPlansPage': boolean
+  'ol-galleryTagName': string
   'ol-gitBridgeEnabled': boolean
   'ol-gitBridgePublicBaseUrl': string
   'ol-github': { enabled: boolean; error: boolean }
   'ol-groupId': string
   'ol-groupName': string
   'ol-groupPlans': GroupPlans
+  'ol-groupPolicy': GroupPolicy
   'ol-groupSSOActive': boolean
   'ol-groupSSOTestResult': GroupSSOTestResult
+  'ol-groupSettingsAdvertisedFor': string[]
   'ol-groupSettingsEnabledFor': string[]
   'ol-groupSize': number
   'ol-groupSsoSetupSuccess': boolean
@@ -112,9 +126,11 @@ export interface Meta {
   'ol-inviterName': string
   'ol-isExternalAuthenticationSystemUsed': boolean
   'ol-isManagedAccount': boolean
+  'ol-isPaywallChangeCompileTimeoutEnabled': boolean
   'ol-isProfessional': boolean
   'ol-isRegisteredViaGoogle': boolean
   'ol-isRestrictedTokenMember': boolean
+  'ol-isReviewerRoleEnabled': boolean
   'ol-isSaas': boolean
   'ol-itm_campaign': string
   'ol-itm_content': string
@@ -123,7 +139,7 @@ export interface Meta {
   'ol-languages': SpellCheckLanguage[]
   'ol-learnedWords': string[]
   'ol-legacyEditorThemes': string[]
-  'ol-linkSharingWarning': boolean
+  'ol-licenseQuantity': number | undefined
   'ol-loadingText': string
   'ol-managedGroupSubscriptions': ManagedGroupSubscription[]
   'ol-managedInstitutions': ManagedInstitution[]
@@ -136,13 +152,15 @@ export interface Meta {
   'ol-memberGroupSubscriptions': MemberGroupSubscription[]
   'ol-memberOfSSOEnabledGroups': GroupSSOLinkingStatus[]
   'ol-members': MinimalUser[]
+  'ol-navbar': DefaultNavbarMetadata
   'ol-no-single-dollar': boolean
   'ol-notifications': NotificationType[]
   'ol-notificationsInstitution': InstitutionType[]
   'ol-oauthProviders': OAuthProviders
-  'ol-optionalPersonalAccessToken': boolean
+  'ol-odcRole': string
   'ol-overallThemes': OverallThemeMeta[]
   'ol-passwordStrengthOptions': PasswordStrengthOptions
+  'ol-paywallPlans': { [key: string]: string }
   'ol-personalAccessTokens': AccessToken[] | undefined
   'ol-plan': Plan
   'ol-planCode': string
@@ -152,8 +170,11 @@ export interface Meta {
   'ol-postCheckoutRedirect': string
   'ol-postUrl': string
   'ol-prefetchedProjectsBlob': GetProjectsResponseBody | undefined
+  'ol-preventCompileOnLoad'?: boolean
   'ol-primaryEmail': { email: string; confirmed: boolean }
   'ol-project': any // TODO
+  'ol-projectHistoryBlobsEnabled': boolean
+  'ol-projectName': string
   'ol-projectSyncSuccessMessage': string
   'ol-projectTags': Tag[]
   'ol-project_id': string
@@ -162,20 +183,22 @@ export interface Meta {
   'ol-reconfirmedViaSAML': string
   'ol-recurlyApiKey': string
   'ol-recurlySubdomain': string
+  'ol-ro-mirror-on-client-no-local-storage': boolean
   'ol-samlError': SAMLError | undefined
   'ol-settingsGroupSSO': { enabled: boolean } | undefined
   'ol-settingsPlans': Plan[]
   'ol-shouldAllowEditingDetails': boolean
+  'ol-shouldLoadHotjar': boolean
   'ol-showAiErrorAssistant': boolean
   'ol-showBrlGeoBanner': boolean
   'ol-showCouponField': boolean
   'ol-showGroupsAndEnterpriseBanner': boolean
   'ol-showInrGeoBanner': boolean
   'ol-showLATAMBanner': boolean
-  'ol-showPersonalAccessToken': boolean
   'ol-showSupport': boolean
   'ol-showSymbolPalette': boolean
   'ol-showTemplatesServerPro': boolean
+  'ol-showUSGovBanner': boolean
   'ol-showUpgradePrompt': boolean
   'ol-skipUrl': string
   'ol-splitTestInfo': { [name: string]: SplitTestInfo }
@@ -183,6 +206,7 @@ export interface Meta {
   'ol-ssoDisabled': boolean
   'ol-ssoErrorMessage': string
   'ol-subscription': any // TODO: mixed types, split into two fields
+  'ol-subscriptionChangePreview': SubscriptionChangePreview
   'ol-subscriptionId': string
   'ol-suggestedLanguage': SuggestedLanguage | undefined
   'ol-survey': Survey | undefined
@@ -190,13 +214,18 @@ export interface Meta {
   'ol-tags': Tag[]
   'ol-teamInvites': TeamInvite[]
   'ol-thirdPartyIds': ThirdPartyIds
+  'ol-totalLicenses': number
   'ol-translationIoNotLoaded': string
   'ol-translationLoadErrorMessage': string
   'ol-translationMaintenance': string
   'ol-translationUnableToJoin': string
+  'ol-usGovBannerVariant': USGovBannerVariant
   'ol-useShareJsHash': boolean
+  'ol-usedLatex': 'never' | 'occasionally' | 'often' | undefined
   'ol-user': User
   'ol-userAffiliations': Affiliation[]
+  'ol-userCanExtendTrial': boolean
+  'ol-userCanNotStartRequestedTrial': boolean
   'ol-userEmails': UserEmailData[]
   'ol-userSettings': UserSettings
   'ol-user_id': string | undefined
@@ -204,12 +233,29 @@ export interface Meta {
   'ol-usersBestSubscription': ProjectDashboardSubscription | undefined
   'ol-usersEmail': string | undefined
   'ol-validationStatus': ValidationStatus
+  'ol-websiteRedesignPlansVariant': 'default' | 'light-design' | 'new-design'
   'ol-wikiEnabled': boolean
   'ol-writefullCssUrl': string
   'ol-writefullEnabled': boolean
   'ol-writefullJsUrl': string
   'ol-wsUrl': string
 }
+
+type DeepPartial<T> =
+  T extends Record<string, any> ? { [P in keyof T]?: DeepPartial<T[P]> } : T
+
+export type PartialMeta = DeepPartial<Meta>
+
+export type MetaAttributesCache<
+  K extends keyof PartialMeta = keyof PartialMeta,
+> = Map<K, PartialMeta[K]>
+
+export type MetaTag = {
+  [K in keyof Meta]: {
+    name: K
+    value: Meta[K]
+  }
+}[keyof Meta]
 
 // cache for parsed values
 window.metaAttributesCache = window.metaAttributesCache || new Map()
@@ -245,30 +291,4 @@ export default function getMeta<T extends keyof Meta>(name: T): Meta[T] {
   }
   window.metaAttributesCache.set(name, value)
   return value
-}
-
-function convertMetaToWindowAttributes() {
-  Array.from(document.querySelectorAll('meta[name^="ol-"]'))
-    .map(element => (element as HTMLMetaElement).name)
-    // process short labels before long ones:
-    // e.g. assign 'foo' before 'foo.bar'
-    .sort()
-    .forEach(nameWithNamespace => {
-      const label = nameWithNamespace.slice('ol-'.length)
-      // @ts-ignore
-      _.set(window, label, getMeta(nameWithNamespace))
-    })
-}
-
-// Deduplicate warning, the bootstrap-3 bundle ships its own copy of this module.
-if (!window.warnedAboutWindowAttributeRemoval) {
-  window.warnedAboutWindowAttributeRemoval = true
-  // Notify any extension developers about the upcoming removal of window attributes.
-  // eslint-disable-next-line no-console
-  console.warn(
-    'overleaf.com: We are sunsetting window properties like "window.project_id". If you need access to any of these, please reach out to support@overleaf.com to discuss options.'
-  )
-}
-if (!isSplitTestEnabled('remove-window-attributes')) {
-  convertMetaToWindowAttributes()
 }

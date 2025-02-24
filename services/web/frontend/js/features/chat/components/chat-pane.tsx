@@ -10,15 +10,21 @@ import { useUserContext } from '../../../shared/context/user-context'
 import withErrorBoundary from '../../../infrastructure/error-boundary'
 import { FetchError } from '../../../infrastructure/fetch-json'
 import { useChatContext } from '../context/chat-context'
-import LoadingSpinner from '../../../shared/components/loading-spinner'
-import useViewerPermissions from '@/shared/hooks/use-viewer-permissions'
+import { FullSizeLoadingSpinner } from '../../../shared/components/loading-spinner'
+import { bsVersion } from '@/features/utils/bootstrap-5'
+import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
+import MaterialIcon from '@/shared/components/material-icon'
 
 const MessageList = lazy(() => import('./message-list'))
+
+const Loading = () => (
+  <FullSizeLoadingSpinner delay={500} className={bsVersion({ bs5: 'pt-4' })} />
+)
 
 const ChatPane = React.memo(function ChatPane() {
   const { t } = useTranslation()
 
-  const { setChatIsOpen, chatIsOpen } = useLayoutContext()
+  const { chatIsOpen } = useLayoutContext()
   const user = useUserContext()
 
   const {
@@ -47,17 +53,13 @@ const ChatPane = React.memo(function ChatPane() {
     0
   )
 
-  const shouldShowChat = !useViewerPermissions()
-
   // Keep the chat pane in the DOM to avoid resetting the form input and re-rendering MathJax content.
   const [chatOpenedOnce, setChatOpenedOnce] = useState(chatIsOpen)
   useEffect(() => {
-    if (chatIsOpen && shouldShowChat) {
+    if (chatIsOpen) {
       setChatOpenedOnce(true)
-    } else if (chatIsOpen && !shouldShowChat) {
-      setChatIsOpen(false)
     }
-  }, [chatIsOpen, setChatIsOpen, shouldShowChat])
+  }, [chatIsOpen])
 
   if (error) {
     // let user try recover from fetch errors
@@ -84,13 +86,14 @@ const ChatPane = React.memo(function ChatPane() {
         itemCount={messageContentCount}
       >
         <div>
-          <h2 className="sr-only">{t('chat')}</h2>
-          <Suspense fallback={<LoadingSpinner delay={500} />}>
-            {status === 'pending' && <LoadingSpinner delay={500} />}
+          <h2 className={bsVersion({ bs3: 'sr-only', bs5: 'visually-hidden' })}>
+            {t('chat')}
+          </h2>
+          <Suspense fallback={<Loading />}>
+            {status === 'pending' && <Loading />}
             {shouldDisplayPlaceholder && <Placeholder />}
             <MessageList
               messages={messages}
-              userId={user.id}
               resetUnreadMessages={markMessagesAsRead}
             />
           </Suspense>
@@ -112,7 +115,10 @@ function Placeholder() {
       <div className="first-message text-center">
         {t('send_first_message')}
         <br />
-        <Icon type="arrow-down" />
+        <BootstrapVersionSwitcher
+          bs3={<Icon type="arrow-down" />}
+          bs5={<MaterialIcon type="arrow_downward" />}
+        />
       </div>
     </>
   )

@@ -2,7 +2,7 @@ const { callbackify } = require('util')
 const { callbackifyMultiResult } = require('@overleaf/promise-utils')
 const logger = require('@overleaf/logger')
 const path = require('path')
-const { ObjectId } = require('mongodb')
+const { ObjectId } = require('mongodb-legacy')
 const Settings = require('@overleaf/settings')
 const OError = require('@overleaf/o-error')
 const CooldownManager = require('../Cooldown/CooldownManager')
@@ -375,11 +375,20 @@ async function moveEntity(projectId, entityId, destFolderId, entityType) {
   return { project, startPath, endPath, rev: entity.rev, changes }
 }
 
-async function deleteEntity(projectId, entityId, entityType, callback) {
+async function deleteEntity(projectId, entityId, entityType) {
   const project = await ProjectGetter.promises.getProjectWithoutLock(
     projectId,
     { name: true, rootFolder: true, overleaf: true, rootDoc_id: true }
   )
+  if (
+    entityType === 'folder' &&
+    project.rootFolder.some(
+      rootFolder => rootFolder._id.toString() === entityId.toString()
+    )
+  ) {
+    throw new Errors.NonDeletableEntityError('cannot delete root folder')
+  }
+
   const deleteRootDoc =
     project.rootDoc_id &&
     entityId &&
@@ -618,7 +627,7 @@ function _checkValidElementName(folder, name) {
     .concat(folder.folders || [])
   for (const element of elements) {
     if (element.name === name) {
-      throw new Errors.InvalidNameError('file already exists')
+      throw new Errors.DuplicateNameError('file already exists')
     }
   }
 }

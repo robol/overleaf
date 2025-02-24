@@ -21,17 +21,16 @@ import {
 import { Institution } from '../../../../../types/institution'
 import getMeta from '../../../utils/meta'
 import {
-  formatCurrencyDefault,
   loadDisplayPriceWithTaxPromise,
   loadGroupDisplayPriceWithTaxPromise,
 } from '../util/recurly-pricing'
 import { isRecurlyLoaded } from '../util/is-recurly-loaded'
 import { SubscriptionDashModalIds } from '../../../../../types/subscription/dashboard/modal-ids'
 import { debugConsole } from '@/utils/debugging'
-import { useFeatureFlag } from '@/shared/context/split-test-context'
-import { formatCurrencyLocalized } from '@/shared/utils/currency'
+import { formatCurrency } from '@/shared/utils/currency'
 import { ManagedInstitution } from '../../../../../types/subscription/dashboard/managed-institution'
 import { Publisher } from '../../../../../types/subscription/dashboard/publisher'
+import { formatTime } from '@/features/utils/format-date'
 
 type SubscriptionDashboardContextValue = {
   groupPlanToChangeToCode: string
@@ -74,6 +73,8 @@ type SubscriptionDashboardContextValue = {
   setShowCancellation: React.Dispatch<React.SetStateAction<boolean>>
   leavingGroupId?: string
   setLeavingGroupId: React.Dispatch<React.SetStateAction<string | undefined>>
+  userCanExtendTrial: boolean
+  getFormattedRenewalDate: () => string
 }
 
 export const SubscriptionDashboardContext = createContext<
@@ -115,6 +116,7 @@ export function SubscriptionDashboardProvider({
   const plansWithoutDisplayPrice = getMeta('ol-plans')
   const institutionMemberships = getMeta('ol-currentInstitutionsWithLicence')
   const personalSubscription = getMeta('ol-subscription')
+  const userCanExtendTrial = getMeta('ol-userCanExtendTrial')
   const managedGroupSubscriptions = getMeta('ol-managedGroupSubscriptions')
   const memberGroupSubscriptions = getMeta('ol-memberGroupSubscriptions')
   const [managedInstitutions, setManagedInstitutions] = useState(
@@ -139,9 +141,19 @@ export function SubscriptionDashboardProvider({
       memberGroupSubscriptions?.length > 0
   )
 
-  const formatCurrency = useFeatureFlag('local-ccy-format-v2')
-    ? formatCurrencyLocalized
-    : formatCurrencyDefault
+  const getFormattedRenewalDate = useCallback(() => {
+    if (
+      !personalSubscription.recurly.pausedAt ||
+      !personalSubscription.recurly.remainingPauseCycles
+    ) {
+      return personalSubscription.recurly.nextPaymentDueAt
+    }
+    const pausedDate = new Date(personalSubscription.recurly.pausedAt)
+    pausedDate.setMonth(
+      pausedDate.getMonth() + personalSubscription.recurly.remainingPauseCycles
+    )
+    return formatTime(pausedDate, 'MMMM Do, YYYY')
+  }, [personalSubscription])
 
   useEffect(() => {
     if (!isRecurlyLoaded()) {
@@ -165,8 +177,7 @@ export function SubscriptionDashboardProvider({
               plan.planCode,
               currency,
               taxRate,
-              i18n.language,
-              formatCurrency
+              i18n.language
             )
             if (priceData?.totalAsNumber !== undefined) {
               plan.displayPrice = formatCurrency(
@@ -184,12 +195,7 @@ export function SubscriptionDashboardProvider({
       }
       fetchPlansDisplayPrices().catch(debugConsole.error)
     }
-  }, [
-    personalSubscription,
-    plansWithoutDisplayPrice,
-    i18n.language,
-    formatCurrency,
-  ])
+  }, [personalSubscription, plansWithoutDisplayPrice, i18n.language])
 
   useEffect(() => {
     if (
@@ -212,8 +218,7 @@ export function SubscriptionDashboardProvider({
             taxRate,
             groupPlanToChangeToSize,
             groupPlanToChangeToUsage,
-            i18n.language,
-            formatCurrency
+            i18n.language
           )
         } catch (e) {
           debugConsole.error(e)
@@ -229,7 +234,6 @@ export function SubscriptionDashboardProvider({
     groupPlanToChangeToSize,
     personalSubscription,
     groupPlanToChangeToCode,
-    formatCurrency,
     i18n.language,
   ])
 
@@ -294,6 +298,8 @@ export function SubscriptionDashboardProvider({
       setShowCancellation,
       leavingGroupId,
       setLeavingGroupId,
+      userCanExtendTrial,
+      getFormattedRenewalDate,
     }),
     [
       groupPlanToChangeToCode,
@@ -329,6 +335,8 @@ export function SubscriptionDashboardProvider({
       setShowCancellation,
       leavingGroupId,
       setLeavingGroupId,
+      userCanExtendTrial,
+      getFormattedRenewalDate,
     ]
   )
 

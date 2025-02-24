@@ -1,3 +1,4 @@
+import '../../helpers/bootstrap-3'
 import StartFreeTrialButton from '../../../../frontend/js/shared/components/start-free-trial-button'
 import getMeta from '@/utils/meta'
 
@@ -43,7 +44,7 @@ describe('start free trial button', function () {
         source="cypress-test"
         buttonProps={{
           variant: 'danger',
-          size: 'large',
+          size: 'lg',
         }}
       />
     )

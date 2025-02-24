@@ -1,3 +1,4 @@
+import '../../helpers/bootstrap-3'
 import EditorLeftMenu from '../../../../frontend/js/features/editor-left-menu/components/editor-left-menu'
 import {
   AllowedImageName,
@@ -266,7 +267,7 @@ describe('<EditorLeftMenu />', function () {
 
         cy.findByRole('button', { name: 'Git' }).click()
         cy.findByText('Clone with Git')
-        cy.findByText(/your project using the link displayed below/)
+        cy.findByText(/clone your project by using the link below/)
       })
 
       it('shows git modal paywall correctly', function () {
@@ -440,10 +441,12 @@ describe('<EditorLeftMenu />', function () {
           {
             name: 'Lang 1',
             code: 'lang-1',
+            dic: 'lang_1',
           },
           {
             name: 'Lang 2',
             code: 'lang-2',
+            dic: 'lang_2',
           },
         ]
 
@@ -485,7 +488,7 @@ describe('<EditorLeftMenu />', function () {
           </EditorProviders>
         )
 
-        cy.get('label[for="dictionary"] ~ button').click()
+        cy.get('label[for="dictionary-settings"] ~ button').click()
         cy.findByText('Edit Dictionary')
         cy.findByText('Your custom dictionary is empty.')
       })
@@ -726,12 +729,13 @@ describe('<EditorLeftMenu />', function () {
         cy.get<HTMLOptionElement>('#settings-menu-fontFamily option').then(
           options => {
             const values = [...options].map(o => o.value)
-            expect(values).to.deep.eq(['monaco', 'lucida'])
+            expect(values).to.deep.eq(['monaco', 'lucida', 'opendyslexicmono'])
 
             const texts = [...options].map(o => o.text)
             expect(texts).to.deep.eq([
               'Monaco / Menlo / Consolas',
               'Lucida / Source Code Pro',
+              'OpenDyslexic Mono',
             ])
           }
         )

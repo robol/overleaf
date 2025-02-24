@@ -1,10 +1,11 @@
 import { createContext, FC, useContext, useEffect, useMemo } from 'react'
 import { ScopeValueStore } from '../../../../types/ide/scope-value-store'
 import { ScopeEventEmitter } from '../../../../types/ide/scope-event-emitter'
+import { Socket } from '@/features/ide-react/connection/types/socket'
 
 export type Ide = {
-  [key: string]: any // TODO: define the rest of the `ide` and `$scope` properties
   $scope: Record<string, any>
+  socket: Socket
 }
 
 type IdeContextValue = Ide & {
@@ -27,6 +28,11 @@ export const IdeProvider: FC<{
    *   - `project.spellcheckLanguage`
    *   - `editor.open_doc_name`,
    *   - `editor.open_doc_id`,
+   *   - `settings.theme`
+   *   - `settings.keybindings`
+   *   - `settings.fontSize`
+   *   - `settings.fontFamily`
+   *   - `settings.lineHeight`
    */
   useEffect(() => {
     window.overleaf = {

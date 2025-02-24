@@ -17,33 +17,57 @@ export const PermissionsContext = createContext<Permissions | undefined>(
 const permissionsMap: DeepReadonly<Record<PermissionsLevel, Permissions>> = {
   readOnly: {
     read: true,
+    comment: true,
+    resolveOwnComments: false,
+    resolveAllComments: false,
+    trackedWrite: false,
     write: false,
     admin: false,
+    labelVersion: false,
+  },
+  review: {
+    read: true,
     comment: true,
+    resolveOwnComments: true,
+    resolveAllComments: false,
+    trackedWrite: true,
+    write: false,
+    admin: false,
+    labelVersion: true,
   },
   readAndWrite: {
     read: true,
+    comment: true,
+    resolveOwnComments: true,
+    resolveAllComments: true,
+    trackedWrite: true,
     write: true,
     admin: false,
-    comment: true,
+    labelVersion: true,
   },
   owner: {
     read: true,
+    comment: true,
+    resolveOwnComments: true,
+    resolveAllComments: true,
+    trackedWrite: true,
     write: true,
     admin: true,
-    comment: true,
+    labelVersion: true,
   },
 }
 
 const anonymousPermissionsMap: typeof permissionsMap = {
   readOnly: { ...permissionsMap.readOnly, comment: false },
   readAndWrite: { ...permissionsMap.readAndWrite, comment: false },
+  review: { ...permissionsMap.review, comment: false },
   owner: { ...permissionsMap.owner, comment: false },
 }
 
 const linkSharingWarningPermissionsMap: typeof permissionsMap = {
   readOnly: { ...permissionsMap.readOnly, comment: false },
   readAndWrite: permissionsMap.readAndWrite,
+  review: permissionsMap.review,
   owner: permissionsMap.owner,
 }
 

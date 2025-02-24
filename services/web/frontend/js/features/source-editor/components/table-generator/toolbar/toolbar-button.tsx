@@ -1,9 +1,9 @@
 import { EditorView } from '@codemirror/view'
 import classNames from 'classnames'
 import { memo, useCallback } from 'react'
-import Tooltip from '../../../../../shared/components/tooltip'
+import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
 import MaterialIcon from '../../../../../shared/components/material-icon'
-import { useCodeMirrorViewContext } from '../../codemirror-editor'
+import { useCodeMirrorViewContext } from '../../codemirror-context'
 import { emitTableGeneratorEvent } from '../analytics'
 
 export const ToolbarButton = memo<{
@@ -64,12 +64,12 @@ export const ToolbarButton = memo<{
     disabled && disabledLabel ? <div>{disabledLabel}</div> : <div>{label}</div>
 
   return (
-    <Tooltip
+    <OLTooltip
       id={id}
       description={description}
       overlayProps={{ placement: 'bottom' }}
     >
       {button}
-    </Tooltip>
+    </OLTooltip>
   )
 })

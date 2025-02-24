@@ -17,14 +17,17 @@ import { appendMessage, prependMessages } from '../utils/message-list-appender'
 import useBrowserWindow from '../../../shared/hooks/use-browser-window'
 import { useLayoutContext } from '../../../shared/context/layout-context'
 import { useIdeContext } from '@/shared/context/ide-context'
-import useViewerPermissions from '@/shared/hooks/use-viewer-permissions'
+import getMeta from '@/utils/meta'
+import { debugConsole } from '@/utils/debugging'
+import { User } from '../../../../../types/user'
 
 const PAGE_SIZE = 50
 
 export type Message = {
   id: string
   timestamp: number
-  contents: string
+  contents: string[]
+  user: User
 }
 
 type State = {
@@ -188,6 +191,8 @@ export const ChatContext = createContext<
 >(undefined)
 
 export const ChatProvider: FC = ({ children }) => {
+  const chatEnabled = getMeta('ol-chatEnabled')
+
   const clientId = useRef<string>()
   if (clientId.current === undefined) {
     clientId.current = chatClientIdGenerator.generate()
@@ -236,6 +241,10 @@ export const ChatProvider: FC = ({ children }) => {
     }
 
     function loadInitialMessages() {
+      if (!chatEnabled) {
+        debugConsole.warn(`chat is disabled, won't load initial messages`)
+        return
+      }
       if (state.initialMessagesLoaded) return
 
       dispatch({ type: 'INITIAL_FETCH_MESSAGES' })
@@ -243,11 +252,19 @@ export const ChatProvider: FC = ({ children }) => {
     }
 
     function loadMoreMessages() {
+      if (!chatEnabled) {
+        debugConsole.warn(`chat is disabled, won't load messages`)
+        return
+      }
       dispatch({ type: 'FETCH_MESSAGES' })
       fetchMessages()
     }
 
     function reset() {
+      if (!chatEnabled) {
+        debugConsole.warn(`chat is disabled, won't reset chat`)
+        return
+      }
       dispatch({ type: 'CLEAR' })
       fetchMessages()
     }
@@ -257,10 +274,20 @@ export const ChatProvider: FC = ({ children }) => {
       loadMoreMessages,
       reset,
     }
-  }, [projectId, state.atEnd, state.initialMessagesLoaded, state.lastTimestamp])
+  }, [
+    chatEnabled,
+    projectId,
+    state.atEnd,
+    state.initialMessagesLoaded,
+    state.lastTimestamp,
+  ])
 
   const sendMessage = useCallback(
     content => {
+      if (!chatEnabled) {
+        debugConsole.warn(`chat is disabled, won't send message`)
+        return
+      }
       if (!content) return
 
       dispatch({
@@ -279,18 +306,21 @@ export const ChatProvider: FC = ({ children }) => {
         })
       })
     },
-    [projectId, user]
+    [chatEnabled, projectId, user]
   )
 
   const markMessagesAsRead = useCallback(() => {
+    if (!chatEnabled) {
+      debugConsole.warn(`chat is disabled, won't mark messages as read`)
+      return
+    }
     dispatch({ type: 'MARK_MESSAGES_AS_READ' })
-  }, [])
+  }, [chatEnabled])
 
   // Handling receiving messages over the socket
-  const hasViewerPermissions = useViewerPermissions()
   const { socket } = useIdeContext()
   useEffect(() => {
-    if (!socket || hasViewerPermissions) return
+    if (!chatEnabled || !socket) return
 
     function receivedMessage(message: any) {
       // If the message is from the current client id, then we are receiving the sent message back from the socket.
@@ -306,7 +336,7 @@ export const ChatProvider: FC = ({ children }) => {
 
       socket.removeListener('new-chat-message', receivedMessage)
     }
-  }, [socket, hasViewerPermissions])
+  }, [chatEnabled, socket])
 
   // Handle unread messages
   useEffect(() => {

@@ -1,3 +1,9 @@
+const http = require('node:http')
+const https = require('node:https')
+
+http.globalAgent.keepAlive = false
+https.globalAgent.keepAlive = false
+
 module.exports = {
   mongo: {
     url:
@@ -21,10 +27,8 @@ module.exports = {
       url: `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016`,
     },
     filestore: {
+      enabled: process.env.FILESTORE_ENABLED !== 'false',
       url: `http://${process.env.FILESTORE_HOST || '127.0.0.1'}:3009`,
-    },
-    history_v1: {
-      requestTimeout: parseInt(process.env.V1_REQUEST_TIMEOUT || '300000', 10),
     },
     web: {
       url: `http://${
@@ -90,15 +94,12 @@ module.exports = {
         retries_max: 30,
         interval: 2,
       },
+      requestTimeout: parseInt(process.env.V1_REQUEST_TIMEOUT || '300000', 10),
     },
   },
 
   path: {
     uploadFolder: process.env.UPLOAD_FOLDER || '/tmp/',
-  },
-
-  sentry: {
-    dsn: process.env.SENTRY_DSN,
   },
 
   maxFileSizeInBytes: 100 * 1024 * 1024, // 100 megabytes

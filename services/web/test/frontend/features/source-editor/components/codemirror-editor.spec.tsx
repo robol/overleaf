@@ -1,3 +1,4 @@
+import '../../../helpers/bootstrap-3'
 import CodeMirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import { mockScope } from '../helpers/mock-scope'
@@ -11,7 +12,6 @@ describe('<CodeMirrorEditor/>', { scrollBehavior: false }, function () {
   beforeEach(function () {
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
     cy.interceptEvents()
-    cy.interceptSpelling()
   })
 
   it('deletes selected text on Backspace', function () {

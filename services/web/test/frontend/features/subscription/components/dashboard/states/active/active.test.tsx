@@ -1,6 +1,6 @@
 import { expect } from 'chai'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import * as eventTracking from '../../../../../../../../frontend/js/infrastructure/event-tracking'
+import * as eventTracking from '@/infrastructure/event-tracking'
 import { RecurlySubscription } from '../../../../../../../../types/subscription/dashboard/subscription'
 import {
   annualActiveSubscription,
@@ -22,6 +22,7 @@ import {
   subscriptionUpdateUrl,
 } from '../../../../../../../../frontend/js/features/subscription/data/subscription-url'
 import * as useLocationModule from '../../../../../../../../frontend/js/shared/hooks/use-location'
+import { MetaTag } from '@/utils/meta'
 
 describe('<ActiveSubscription />', function () {
   let sendMBSpy: sinon.SinonSpy
@@ -57,8 +58,8 @@ describe('<ActiveSubscription />', function () {
       '* Prices may be subject to additional VAT, depending on your country.'
     )
 
-    screen.getByRole('link', { name: 'Update Your Billing Details' })
-    screen.getByRole('link', { name: 'View Your Invoices' })
+    screen.getByRole('link', { name: 'Update your billing details' })
+    screen.getByRole('link', { name: 'View your invoices' })
   }
 
   it('renders the dash annual active subscription', function () {
@@ -198,6 +199,8 @@ describe('<ActiveSubscription />', function () {
         assign: assignStub,
         replace: sinon.stub(),
         reload: reloadStub,
+        setHash: sinon.stub(),
+        toString: sinon.stub(),
       })
     })
 
@@ -208,7 +211,7 @@ describe('<ActiveSubscription />', function () {
 
     function showConfirmCancelUI() {
       const button = screen.getByRole('button', {
-        name: 'Cancel Your Subscription',
+        name: 'Cancel your subscription',
       })
       fireEvent.click(button)
     }
@@ -227,7 +230,7 @@ describe('<ActiveSubscription />', function () {
       )
       expect(dates.length).to.equal(2)
       const button = screen.getByRole('button', {
-        name: 'Cancel Your Subscription',
+        name: 'Cancel your subscription',
       })
       expect(button).to.exist
     })
@@ -243,7 +246,7 @@ describe('<ActiveSubscription />', function () {
       )
       expect(dates.length).to.equal(3)
       const button = screen.getByRole('button', {
-        name: 'Cancel Your Subscription',
+        name: 'Cancel your subscription',
       })
       expect(button).to.exist
     })
@@ -318,10 +321,14 @@ describe('<ActiveSubscription />', function () {
     })
 
     describe('extend trial', function () {
+      const canExtend: MetaTag = {
+        name: 'ol-userCanExtendTrial',
+        value: true,
+      }
       const cancelButtonText = 'No thanks, I still want to cancel'
       const extendTrialButtonText = 'I’ll take it!'
       it('shows alternate cancel subscription button text for cancel button and option to extend trial', function () {
-        renderActiveSubscription(trialCollaboratorSubscription)
+        renderActiveSubscription(trialCollaboratorSubscription, [canExtend])
         showConfirmCancelUI()
         screen.getByText('Have another', { exact: false })
         screen.getByText('14 days', { exact: false })
@@ -335,7 +342,7 @@ describe('<ActiveSubscription />', function () {
       })
 
       it('disables both buttons and updates text for when trial button clicked', function () {
-        renderActiveSubscription(trialCollaboratorSubscription)
+        renderActiveSubscription(trialCollaboratorSubscription, [canExtend])
         showConfirmCancelUI()
         const extendTrialButton = screen.getByRole('button', {
           name: extendTrialButtonText,
@@ -355,7 +362,7 @@ describe('<ActiveSubscription />', function () {
       })
 
       it('disables both buttons and updates text for when cancel button clicked', function () {
-        renderActiveSubscription(trialCollaboratorSubscription)
+        renderActiveSubscription(trialCollaboratorSubscription, [canExtend])
         showConfirmCancelUI()
         const cancelButtton = screen.getByRole('button', {
           name: cancelButtonText,
@@ -374,22 +381,8 @@ describe('<ActiveSubscription />', function () {
         })
       })
 
-      it('does not show option to extend trial when not a collaborator trial', function () {
-        const trialPlan = cloneDeep(trialCollaboratorSubscription)
-        trialPlan.plan.planCode = 'anotherplan'
-        renderActiveSubscription(trialPlan)
-        showConfirmCancelUI()
-        expect(
-          screen.queryByRole('button', {
-            name: extendTrialButtonText,
-          })
-        ).to.be.null
-      })
-
-      it('does not show option to extend trial when a collaborator trial but does not expire in 7 days', function () {
-        const trialPlan = cloneDeep(trialCollaboratorSubscription)
-        trialPlan.recurly.trial_ends_at = null
-        renderActiveSubscription(trialPlan)
+      it('does not show option to extend trial when user is not eligible', function () {
+        renderActiveSubscription(trialCollaboratorSubscription)
         showConfirmCancelUI()
         expect(
           screen.queryByRole('button', {
@@ -403,7 +396,7 @@ describe('<ActiveSubscription />', function () {
           status: 200,
         }
         fetchMock.put(extendTrialUrl, endPointResponse)
-        renderActiveSubscription(trialCollaboratorSubscription)
+        renderActiveSubscription(trialCollaboratorSubscription, [canExtend])
         showConfirmCancelUI()
         const extendTrialButton = screen.getByRole('button', {
           name: extendTrialButtonText,

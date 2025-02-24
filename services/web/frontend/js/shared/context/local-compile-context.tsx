@@ -7,6 +7,8 @@ import {
   useMemo,
   useRef,
   useState,
+  Dispatch,
+  SetStateAction,
 } from 'react'
 import useScopeValue from '../hooks/use-scope-value'
 import useScopeValueSetterOnly from '../hooks/use-scope-value-setter-only'
@@ -26,7 +28,6 @@ import {
   handleLogFiles,
   handleOutputFiles,
 } from '../../features/pdf-preview/util/output-files'
-import { useIdeContext } from './ide-context'
 import { useProjectContext } from './project-context'
 import { useEditorContext } from './editor-context'
 import { buildFileList } from '../../features/pdf-preview/util/file-list'
@@ -37,6 +38,11 @@ import { useFileTreePathContext } from '@/features/file-tree/contexts/file-tree-
 import { useUserSettingsContext } from '@/shared/context/user-settings-context'
 import { useFeatureFlag } from '@/shared/context/split-test-context'
 import { useEditorManagerContext } from '@/features/ide-react/context/editor-manager-context'
+import {
+  PdfScrollPosition,
+  usePdfScrollPosition,
+} from '@/shared/hooks/use-pdf-scroll-position'
+import { PdfFileDataList } from '@/features/pdf-preview/util/types'
 
 type PdfFile = Record<string, any>
 
@@ -49,7 +55,7 @@ export type CompileContext = {
   deliveryLatencies: Record<string, any>
   draft: boolean
   error?: string
-  fileList?: Record<string, any>
+  fileList?: PdfFileDataList
   hasChanges: boolean
   hasShortCompileTimeout: boolean
   highlights?: Record<string, any>[]
@@ -61,14 +67,14 @@ export type CompileContext = {
   pdfFile?: PdfFile
   pdfUrl?: string
   pdfViewer?: string
-  position?: Record<string, any>
+  position?: PdfScrollPosition
   rawLog?: string
   setAutoCompile: (value: boolean) => void
   setDraft: (value: any) => void
   setError: (value: any) => void
   setHasLintingError: (value: any) => void // only for storybook
   setHighlights: (value: any) => void
-  setPosition: (value: any) => void
+  setPosition: Dispatch<SetStateAction<PdfScrollPosition>>
   setShowCompileTimeWarning: (value: any) => void
   setShowLogs: (value: boolean) => void
   toggleLogs: () => void
@@ -106,10 +112,8 @@ export const LocalCompileContext = createContext<CompileContext | undefined>(
 )
 
 export const LocalCompileProvider: FC = ({ children }) => {
-  const ide = useIdeContext()
-
   const { hasPremiumCompile, isProjectOwner } = useEditorContext()
-  const { openDocId } = useEditorManagerContext()
+  const { openDocWithId, openDocs, currentDocument } = useEditorManagerContext()
 
   const { _id: projectId, rootDocId } = useProjectContext()
 
@@ -171,7 +175,7 @@ export const LocalCompileProvider: FC = ({ children }) => {
   // the rootDocId used in the most recent compile request, which may not be the
   // same as the project rootDocId. This is used to calculate correct paths when
   // parsing the compile logs
-  const lastCompileRootDocId = data?.rootDocId
+  const lastCompileRootDocId = data ? (data.rootDocId ?? rootDocId) : null
 
   // callback to be invoked for PdfJsMetrics
   const [firstRenderDone, setFirstRenderDone] = useState(() => () => {})
@@ -205,7 +209,7 @@ export const LocalCompileProvider: FC = ({ children }) => {
   const [error, setError] = useState<string>()
 
   // the list of files that can be downloaded
-  const [fileList, setFileList] = useState<Record<string, any[]>>()
+  const [fileList, setFileList] = useState<PdfFileDataList>()
 
   // the raw contents of the log file
   const [rawLog, setRawLog] = useState<string>()
@@ -216,8 +220,7 @@ export const LocalCompileProvider: FC = ({ children }) => {
   // areas to highlight on the PDF, from synctex
   const [highlights, setHighlights] = useState()
 
-  // scroll position of the PDF
-  const [position, setPosition] = usePersistedState(`pdf.position.${projectId}`)
+  const [position, setPosition] = usePdfScrollPosition(lastCompileRootDocId)
 
   // whether autocompile is switched on
   const [autoCompile, setAutoCompile] = usePersistedState(
@@ -245,9 +248,6 @@ export const LocalCompileProvider: FC = ({ children }) => {
     true,
     true
   )
-
-  // the Document currently open in the editor
-  const [currentDoc] = useScopeValue('editor.sharejs_doc')
 
   // whether the editor linter found errors
   const [hasLintingError, setHasLintingError] = useScopeValue('hasLintingError')
@@ -294,13 +294,14 @@ export const LocalCompileProvider: FC = ({ children }) => {
       cleanupCompileResult,
       compilingRef,
       signal,
+      openDocs,
     })
   })
 
   // keep currentDoc in sync with the compiler
   useEffect(() => {
-    compiler.currentDoc = currentDoc
-  }, [compiler, currentDoc])
+    compiler.currentDoc = currentDocument
+  }, [compiler, currentDocument])
 
   // keep the project rootDocId in sync with the compiler
   useEffect(() => {
@@ -327,11 +328,11 @@ export const LocalCompileProvider: FC = ({ children }) => {
 
   // always compile the PDF once after opening the project, after the doc has loaded
   useEffect(() => {
-    if (!compiledOnce && currentDoc) {
+    if (!compiledOnce && currentDocument) {
       setCompiledOnce(true)
       compiler.compile({ isAutoCompileOnLoad: true })
     }
-  }, [compiledOnce, currentDoc, compiler])
+  }, [compiledOnce, currentDocument, compiler])
 
   useEffect(() => {
     setHasShortCompileTimeout(
@@ -524,7 +525,6 @@ export const LocalCompileProvider: FC = ({ children }) => {
     }
   }, [
     data,
-    ide,
     alphaProgram,
     labsProgram,
     features,
@@ -614,14 +614,14 @@ export const LocalCompileProvider: FC = ({ children }) => {
       const result = findEntityByPath(entry.file)
 
       if (result && result.type === 'doc') {
-        openDocId(result.entity._id, {
+        openDocWithId(result.entity._id, {
           gotoLine: entry.line ?? undefined,
           gotoColumn: entry.column ?? undefined,
           keepCurrentView,
         })
       }
     },
-    [findEntityByPath, openDocId]
+    [findEntityByPath, openDocWithId]
   )
 
   // clear the cache then run a compile, triggered by a menu item

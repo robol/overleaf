@@ -1,3 +1,4 @@
+import '../../../helpers/bootstrap-3'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
 import { mockScope } from '../helpers/mock-scope'
@@ -24,7 +25,6 @@ describe('<CodeMirrorEditor/> command tooltip in Visual mode', function () {
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
     cy.interceptEvents()
     cy.interceptMetadata()
-    cy.interceptSpelling()
   })
 
   it('shows a tooltip for \\href', function () {

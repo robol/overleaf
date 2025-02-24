@@ -7,18 +7,9 @@ import * as OperationsCompressor from './OperationsCompressor.js'
 import { isInsert, isRetain, isDelete, isComment } from './Utils.js'
 
 /**
- * @typedef {import('./types').AddDocUpdate} AddDocUpdate
- * @typedef {import('./types').AddFileUpdate} AddFileUpdate
- * @typedef {import('./types').DeleteCommentUpdate} DeleteCommentUpdate
- * @typedef {import('./types').Op} Op
- * @typedef {import('./types').RawScanOp} RawScanOp
- * @typedef {import('./types').RenameUpdate} RenameUpdate
- * @typedef {import('./types').TextUpdate} TextUpdate
- * @typedef {import('./types').TrackingDirective} TrackingDirective
- * @typedef {import('./types').TrackingProps} TrackingProps
- * @typedef {import('./types').SetCommentStateUpdate} SetCommentStateUpdate
- * @typedef {import('./types').Update} Update
- * @typedef {import('./types').UpdateWithBlob} UpdateWithBlob
+ * @import { AddDocUpdate, AddFileUpdate, DeleteCommentUpdate, Op, RawScanOp } from './types'
+ * @import { RenameUpdate, TextUpdate, TrackingDirective, TrackingProps } from './types'
+ * @import { SetCommentStateUpdate, SetFileMetadataOperation, Update, UpdateWithBlob } from './types'
  */
 
 /**
@@ -64,6 +55,9 @@ function _convertToChange(projectId, updateWithBlob) {
     if (_isAddDocUpdate(update)) {
       op.file.rangesHash = updateWithBlob.blobHashes.ranges
     }
+    if (_isAddFileUpdate(update)) {
+      op.file.metadata = update.metadata
+    }
     operations = [op]
     projectVersion = update.version
   } else if (isTextUpdate(update)) {
@@ -76,6 +70,12 @@ function _convertToChange(projectId, updateWithBlob) {
     for (const op of update.op) {
       builder.addOp(op, update)
     }
+    // add doc hash if present
+    if (update.meta.doc_hash != null) {
+      // This will commit the text operation that the builder is currently
+      // building and set the contentHash property.
+      builder.commitTextOperation({ contentHash: update.meta.doc_hash })
+    }
     operations = builder.finish()
     // add doc version information if present
     if (update.v != null) {
@@ -87,6 +87,13 @@ function _convertToChange(projectId, updateWithBlob) {
         pathname: _convertPathname(update.pathname),
         commentId: update.commentId,
         resolved: update.resolved,
+      },
+    ]
+  } else if (isSetFileMetadataOperation(update)) {
+    operations = [
+      {
+        pathname: _convertPathname(update.pathname),
+        metadata: update.metadata,
       },
     ]
   } else if (isDeleteCommentUpdate(update)) {
@@ -165,8 +172,8 @@ function _isAddFileUpdate(update) {
   return (
     'file' in update &&
     update.file != null &&
-    'url' in update &&
-    update.url != null
+    (('createdBlob' in update && update.createdBlob) ||
+      ('url' in update && update.url != null))
   )
 }
 
@@ -213,6 +220,14 @@ export function isSetCommentStateUpdate(update) {
  */
 export function isDeleteCommentUpdate(update) {
   return 'deleteComment' in update
+}
+
+/**
+ * @param {Update} update
+ * @returns {update is SetFileMetadataOperation}
+ */
+export function isSetFileMetadataOperation(update) {
+  return 'metadata' in update
 }
 
 export function _convertPathname(pathname) {
@@ -276,8 +291,8 @@ class OperationsBuilder {
     const pos = Math.min(op.hpos ?? op.p, this.docLength)
 
     if (isComment(op)) {
-      // Close the current text operation
-      this.pushTextOperation()
+      // Commit the current text operation
+      this.commitTextOperation()
 
       // Add a comment operation
       const commentLength = op.hlen ?? op.c.length
@@ -298,7 +313,7 @@ class OperationsBuilder {
     }
 
     if (pos < this.cursor) {
-      this.pushTextOperation()
+      this.commitTextOperation()
       // At this point, this.cursor === 0 and we can continue
     }
 
@@ -441,23 +456,32 @@ class OperationsBuilder {
     this.docLength -= length
   }
 
-  pushTextOperation() {
-    if (this.textOperation.length > 0)
-      if (this.cursor < this.docLength) {
-        this.retain(this.docLength - this.cursor)
-      }
+  /**
+   * Finalize the current text operation and push it to the queue
+   *
+   * @param {object} [opts]
+   * @param {string} [opts.contentHash]
+   */
+  commitTextOperation(opts = {}) {
+    if (this.textOperation.length > 0 && this.cursor < this.docLength) {
+      this.retain(this.docLength - this.cursor)
+    }
     if (this.textOperation.length > 0) {
-      this.operations.push({
+      const operation = {
         pathname: this.pathname,
         textOperation: this.textOperation,
-      })
+      }
+      if (opts.contentHash != null) {
+        operation.contentHash = opts.contentHash
+      }
+      this.operations.push(operation)
       this.textOperation = []
     }
     this.cursor = 0
   }
 
   finish() {
-    this.pushTextOperation()
+    this.commitTextOperation()
     return this.operations
   }
 }

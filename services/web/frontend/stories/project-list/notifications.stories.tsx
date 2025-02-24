@@ -13,6 +13,7 @@ import {
   setReconfirmAffiliationMeta,
   setReconfirmationMeta,
 } from './helpers/emails'
+import { useMeta } from '../hooks/use-meta'
 
 export const ProjectInvite = (args: any) => {
   useFetchMock(commonSetupMocks)
@@ -143,6 +144,10 @@ export const DropBoxUnlinkedDueToLapsedReconfirmation = (args: any) => {
   setCommonMeta({
     _id: 1,
     templateKey: 'notification_dropbox_unlinked_due_to_lapsed_reconfirmation',
+  })
+
+  useMeta({
+    'ol-user': { features: {} },
   })
 
   return (
@@ -338,4 +343,7 @@ export const ReconfirmedAffiliationSuccess = (args: any) => {
 export default {
   title: 'Project List / Notifications',
   component: UserNotifications,
+  parameters: {
+    bootstrap5: true,
+  },
 }

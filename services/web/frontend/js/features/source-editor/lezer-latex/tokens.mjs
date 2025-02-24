@@ -25,6 +25,7 @@ import {
   AuthorCtrlSeq,
   AffilCtrlSeq,
   AffiliationCtrlSeq,
+  DateCtrlSeq,
   DocumentClassCtrlSeq,
   UsePackageCtrlSeq,
   HrefCtrlSeq,
@@ -86,6 +87,18 @@ import {
   hasMoreArguments,
   hasMoreArgumentsOrOptionals,
   endOfArgumentsAndOptionals,
+  TextBoldCtrlSeq,
+  TextItalicCtrlSeq,
+  TextSmallCapsCtrlSeq,
+  TextTeletypeCtrlSeq,
+  TextMediumCtrlSeq,
+  TextSansSerifCtrlSeq,
+  TextSuperscriptCtrlSeq,
+  TextSubscriptCtrlSeq,
+  TextStrikeOutCtrlSeq,
+  EmphasisCtrlSeq,
+  UnderlineCtrlSeq,
+  SetLengthCtrlSeq,
 } from './latex.terms.mjs'
 
 const MAX_ARGUMENT_LOOKAHEAD = 100
@@ -535,6 +548,7 @@ const otherKnowncommands = {
   '\\author': AuthorCtrlSeq,
   '\\affil': AffilCtrlSeq,
   '\\affiliation': AffiliationCtrlSeq,
+  '\\date': DateCtrlSeq,
   '\\documentclass': DocumentClassCtrlSeq,
   '\\usepackage': UsePackageCtrlSeq,
   '\\href': HrefCtrlSeq,
@@ -579,6 +593,18 @@ const otherKnowncommands = {
   '\\bottomrule': BottomRuleCtrlSeq,
   '\\multicolumn': MultiColumnCtrlSeq,
   '\\parbox': ParBoxCtrlSeq,
+  '\\textbf': TextBoldCtrlSeq,
+  '\\textit': TextItalicCtrlSeq,
+  '\\textsc': TextSmallCapsCtrlSeq,
+  '\\texttt': TextTeletypeCtrlSeq,
+  '\\textmd': TextMediumCtrlSeq,
+  '\\textsf': TextSansSerifCtrlSeq,
+  '\\textsuperscript': TextSuperscriptCtrlSeq,
+  '\\textsubscript': TextSubscriptCtrlSeq,
+  '\\sout': TextStrikeOutCtrlSeq,
+  '\\emph': EmphasisCtrlSeq,
+  '\\underline': UnderlineCtrlSeq,
+  '\\setlength': SetLengthCtrlSeq,
 }
 // specializer for control sequences
 // return new tokens for specific control sequences
@@ -675,6 +701,7 @@ const verbatimEnvNames = new Set([
   'minted',
   'Verbatim',
   'lstlisting',
+  'tcblisting',
   'codeexample',
   'comment',
 ])

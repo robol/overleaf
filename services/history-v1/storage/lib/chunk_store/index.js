@@ -27,7 +27,7 @@ const { Chunk, History, Snapshot } = require('overleaf-editor-core')
 const assert = require('../assert')
 const BatchBlobStore = require('../batch_blob_store')
 const { BlobStore } = require('../blob_store')
-const historyStore = require('../history_store')
+const { historyStore } = require('../history_store')
 const mongoBackend = require('./mongo')
 const postgresBackend = require('./postgres')
 const { ChunkVersionConflictError } = require('./errors')
@@ -81,22 +81,34 @@ async function lazyLoadHistoryFiles(history, batchBlobStore) {
 /**
  * Load the latest Chunk stored for a project, including blob metadata.
  *
- * @param {number} projectId
- * @return {Promise.<Chunk>}
+ * @param {string} projectId
+ * @param {Object} [opts]
+ * @param {boolean} [opts.readOnly]
+ * @return {Promise<{id: string, startVersion: number, endVersion: number, endTimestamp: Date}>}
  */
-async function loadLatest(projectId) {
+async function loadLatestRaw(projectId, opts) {
   assert.projectId(projectId, 'bad projectId')
 
   const backend = getBackend(projectId)
-  const blobStore = new BlobStore(projectId)
-  const batchBlobStore = new BatchBlobStore(blobStore)
-  const chunkRecord = await backend.getLatestChunk(projectId)
+  const chunkRecord = await backend.getLatestChunk(projectId, opts)
   if (chunkRecord == null) {
     throw new Chunk.NotFoundError(projectId)
   }
+  return chunkRecord
+}
 
+/**
+ * Load the latest Chunk stored for a project, including blob metadata.
+ *
+ * @param {string} projectId
+ * @return {Promise.<Chunk>}
+ */
+async function loadLatest(projectId) {
+  const chunkRecord = await loadLatestRaw(projectId)
   const rawHistory = await historyStore.loadRaw(projectId, chunkRecord.id)
   const history = History.fromRaw(rawHistory)
+  const blobStore = new BlobStore(projectId)
+  const batchBlobStore = new BatchBlobStore(blobStore)
   await lazyLoadHistoryFiles(history, batchBlobStore)
   return new Chunk(history, chunkRecord.startVersion)
 }
@@ -141,7 +153,7 @@ async function loadAtTimestamp(projectId, timestamp) {
 /**
  * Store the chunk and insert corresponding records in the database.
  *
- * @param {number} projectId
+ * @param {string} projectId
  * @param {Chunk} chunk
  * @return {Promise.<number>} for the chunkId of the inserted chunk
  */
@@ -180,7 +192,7 @@ async function uploadChunk(projectId, chunk) {
  * Extend the project's history by replacing the latest chunk with a new
  * chunk.
  *
- * @param {number} projectId
+ * @param {string} projectId
  * @param {number} oldEndVersion
  * @param {Chunk} newChunk
  * @return {Promise}
@@ -200,7 +212,7 @@ async function update(projectId, oldEndVersion, newChunk) {
 /**
  * Find the chunk ID for a given version of a project.
  *
- * @param {number} projectId
+ * @param {string} projectId
  * @param {number} version
  * @return {Promise.<number>}
  */
@@ -315,8 +327,10 @@ class AlreadyInitialized extends OError {
 }
 
 module.exports = {
+  getBackend,
   initializeProject,
   loadLatest,
+  loadLatestRaw,
   loadAtVersion,
   loadAtTimestamp,
   create,

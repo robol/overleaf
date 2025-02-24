@@ -2,19 +2,6 @@
 /* eslint-disable react/prop-types */
 import sinon from 'sinon'
 import { get, merge } from 'lodash'
-import { SplitTestProvider } from '@/shared/context/split-test-context'
-import { UserProvider } from '@/shared/context/user-context'
-import { ProjectProvider } from '@/shared/context/project-context'
-import { FileTreeDataProvider } from '@/shared/context/file-tree-data-context'
-import { EditorProvider } from '@/shared/context/editor-context'
-import { DetachProvider } from '@/shared/context/detach-context'
-import { LayoutProvider } from '@/shared/context/layout-context'
-import { LocalCompileProvider } from '@/shared/context/local-compile-context'
-import { DetachCompileProvider } from '@/shared/context/detach-compile-context'
-import { ProjectSettingsProvider } from '@/features/editor-left-menu/context/project-settings-context'
-import { FileTreePathProvider } from '@/features/file-tree/contexts/file-tree-path'
-import { UserSettingsProvider } from '@/shared/context/user-settings-context'
-import { OutlineProvider } from '@/features/ide-react/context/outline-context'
 import { SocketIOMock } from '@/ide/connection/SocketIoShim'
 import { IdeContext } from '@/shared/context/ide-context'
 import React, { useEffect, useState } from 'react'
@@ -25,15 +12,7 @@ import {
 import { IdeEventEmitter } from '@/features/ide-react/create-ide-event-emitter'
 import { ReactScopeEventEmitter } from '@/features/ide-react/scope-event-emitter/react-scope-event-emitter'
 import { ConnectionContext } from '@/features/ide-react/context/connection-context'
-import { EventLog } from '@/features/ide-react/editor/event-log'
-import { ChatProvider } from '@/features/chat/context/chat-context'
-import { EditorManagerProvider } from '@/features/ide-react/context/editor-manager-context'
-import { FileTreeOpenProvider } from '@/features/ide-react/context/file-tree-open-context'
-import { MetadataProvider } from '@/features/ide-react/context/metadata-context'
-import { ModalsContextProvider } from '@/features/ide-react/context/modals-context'
-import { OnlineUsersProvider } from '@/features/ide-react/context/online-users-context'
-import { PermissionsProvider } from '@/features/ide-react/context/permissions-context'
-import { ReferencesProvider } from '@/features/ide-react/context/references-context'
+import { ReactContextRoot } from '@/features/ide-react/context/react-context-root'
 
 // these constants can be imported in tests instead of
 // using magic strings
@@ -54,6 +33,7 @@ const defaultUserSettings = {
   autoPairDelimiters: true,
   trackChanges: true,
   syntaxValidation: false,
+  mathPreview: true,
 }
 
 export function EditorProviders({
@@ -71,6 +51,7 @@ export function EditorProviders({
   features = {
     referencesSearch: true,
   },
+  projectFeatures = features,
   permissionsLevel = 'owner',
   children,
   rootFolder = [
@@ -91,7 +72,7 @@ export function EditorProviders({
     getPreviewByPath: path => ({ url: path, extension: 'png' }),
   },
   editorManager = {
-    getCurrentDocId: () => 'foo',
+    getCurrentDocumentId: () => 'foo',
     getCurrentDocValue: () => {},
     openDoc: sinon.stub(),
   },
@@ -124,7 +105,7 @@ export function EditorProviders({
         _id: projectId,
         name: PROJECT_NAME,
         owner: projectOwner,
-        features,
+        features: projectFeatures,
         rootDoc_id: rootDocId,
         rootFolder,
       },
@@ -151,81 +132,17 @@ export function EditorProviders({
   // Add details for useUserContext
   window.metaAttributesCache.set('ol-user', { ...user, features })
   window.metaAttributesCache.set('ol-project_id', projectId)
-  const Providers = {
-    ChatProvider,
-    ConnectionProvider,
-    DetachCompileProvider,
-    DetachProvider,
-    EditorProvider,
-    EditorManagerProvider,
-    FileTreeDataProvider,
-    FileTreeOpenProvider,
-    FileTreePathProvider,
-    IdeReactProvider,
-    LayoutProvider,
-    LocalCompileProvider,
-    MetadataProvider,
-    ModalsContextProvider,
-    OnlineUsersProvider,
-    OutlineProvider,
-    PermissionsProvider,
-    ProjectProvider,
-    ProjectSettingsProvider,
-    ReferencesProvider,
-    SplitTestProvider,
-    UserProvider,
-    UserSettingsProvider,
-    ...providers,
-  }
 
   return (
-    <Providers.SplitTestProvider>
-      <Providers.ModalsContextProvider>
-        <Providers.ConnectionProvider>
-          <Providers.IdeReactProvider>
-            <Providers.UserProvider>
-              <Providers.UserSettingsProvider>
-                <Providers.ProjectProvider>
-                  <Providers.FileTreeDataProvider>
-                    <Providers.FileTreePathProvider>
-                      <Providers.ReferencesProvider>
-                        <Providers.DetachProvider>
-                          <Providers.EditorProvider>
-                            <Providers.PermissionsProvider>
-                              <Providers.ProjectSettingsProvider>
-                                <Providers.LayoutProvider>
-                                  <Providers.EditorManagerProvider>
-                                    <Providers.LocalCompileProvider>
-                                      <Providers.DetachCompileProvider>
-                                        <Providers.ChatProvider>
-                                          <Providers.FileTreeOpenProvider>
-                                            <Providers.OnlineUsersProvider>
-                                              <Providers.MetadataProvider>
-                                                <Providers.OutlineProvider>
-                                                  {children}
-                                                </Providers.OutlineProvider>
-                                              </Providers.MetadataProvider>
-                                            </Providers.OnlineUsersProvider>
-                                          </Providers.FileTreeOpenProvider>
-                                        </Providers.ChatProvider>
-                                      </Providers.DetachCompileProvider>
-                                    </Providers.LocalCompileProvider>
-                                  </Providers.EditorManagerProvider>
-                                </Providers.LayoutProvider>
-                              </Providers.ProjectSettingsProvider>
-                            </Providers.PermissionsProvider>
-                          </Providers.EditorProvider>
-                        </Providers.DetachProvider>
-                      </Providers.ReferencesProvider>
-                    </Providers.FileTreePathProvider>
-                  </Providers.FileTreeDataProvider>
-                </Providers.ProjectProvider>
-              </Providers.UserSettingsProvider>
-            </Providers.UserProvider>
-          </Providers.IdeReactProvider>
-        </Providers.ConnectionProvider>
-      </Providers.ModalsContextProvider>
-    </Providers.SplitTestProvider>
+    <ReactContextRoot
+      providers={{
+        ConnectionProvider,
+        IdeReactProvider,
+        ...providers,
+      }}
+    >
+      {children}
+    </ReactContextRoot>
   )
 }
 
@@ -262,7 +179,6 @@ const IdeReactProvider = ({ children }) => {
   const [ideReactContextValue] = useState(() => ({
     projectId: PROJECT_ID,
     eventEmitter: new IdeEventEmitter(),
-    eventLog: new EventLog(),
     startedFreeTrial,
     setStartedFreeTrial,
     reportError: () => {},

@@ -5,6 +5,9 @@ const settings = require('@overleaf/settings')
 // backward-compatible (can be instantiated with string as argument instead
 // of object)
 class BackwardCompatibleError extends OError {
+  /**
+   * @param {string | { message: string, info?: Object }} messageOrOptions
+   */
   constructor(messageOrOptions) {
     if (typeof messageOrOptions === 'string') {
       super(messageOrOptions)
@@ -37,6 +40,8 @@ class ForbiddenError extends BackwardCompatibleError {}
 class ServiceNotConfiguredError extends BackwardCompatibleError {}
 
 class TooManyRequestsError extends BackwardCompatibleError {}
+
+class DuplicateNameError extends OError {}
 
 class InvalidNameError extends BackwardCompatibleError {}
 
@@ -133,6 +138,24 @@ class SAMLMissingSignatureError extends SAMLAuthenticationError {
   }
 }
 
+class SAMLInvalidUserIdentifierError extends SAMLAuthenticationError {
+  get i18nKey() {
+    return 'saml_authentication_required_error'
+  }
+}
+
+class SAMLInvalidUserAttributeError extends SAMLAuthenticationError {
+  get i18nKey() {
+    return 'saml_authentication_required_error'
+  }
+}
+
+class SAMLMissingUserIdentifierError extends SAMLAuthenticationError {
+  get i18nKey() {
+    return 'saml_missing_user_attribute'
+  }
+}
+
 class SAMLInvalidResponseError extends SAMLAuthenticationError {}
 
 class SAMLResponseAlreadyProcessedError extends SAMLInvalidResponseError {
@@ -185,6 +208,8 @@ class SAMLSessionDataMissing extends BackwardCompatibleError {
     }
   }
 }
+
+class SAMLProviderRequesterError extends SAMLAuthenticationError {}
 
 class ThirdPartyIdentityExistsError extends BackwardCompatibleError {
   constructor(arg) {
@@ -263,6 +288,12 @@ class InvalidInstitutionalEmailError extends OError {
   }
 }
 
+class NonDeletableEntityError extends OError {
+  get i18nKey() {
+    return 'non_deletable_entity'
+  }
+}
+
 module.exports = {
   OError,
   BackwardCompatibleError,
@@ -270,6 +301,7 @@ module.exports = {
   ForbiddenError,
   ServiceNotConfiguredError,
   TooManyRequestsError,
+  DuplicateNameError,
   InvalidNameError,
   UnsupportedFileTypeError,
   FileTooLargeError,
@@ -293,8 +325,12 @@ module.exports = {
   SAMLGroupSSOLoginIdentityMismatchError,
   SAMLGroupSSOLoginIdentityNotFoundError,
   SAMLGroupSSODisabledError,
+  SAMLInvalidUserAttributeError,
+  SAMLInvalidUserIdentifierError,
   SAMLInvalidSignatureError,
+  SAMLMissingUserIdentifierError,
   SAMLMissingSignatureError,
+  SAMLProviderRequesterError,
   SAMLInvalidResponseError,
   SAMLLoginFailureError,
   SAMLEmailNotRecognizedError,
@@ -312,4 +348,5 @@ module.exports = {
   AffiliationError,
   InvalidEmailError,
   InvalidInstitutionalEmailError,
+  NonDeletableEntityError,
 }

@@ -6,11 +6,11 @@ const DocArchive = require('./DocArchiveManager')
 const RangeManager = require('./RangeManager')
 const Settings = require('@overleaf/settings')
 const { callbackifyAll } = require('@overleaf/promise-utils')
-const { setTimeout } = require('timers/promises')
+const { setTimeout } = require('node:timers/promises')
 
 /**
- * @typedef {import('mongodb').Document} Document
- * @typedef {import('mongodb').WithId} WithId
+ * @import { Document } from 'mongodb'
+ * @import { WithId } from 'mongodb'
  */
 
 const DocManager = {

@@ -1,7 +1,7 @@
 import type { Preview } from '@storybook/react'
 
 // Storybook does not (currently) support async loading of "stories". Therefore
-// the strategy in frontend/js/i18n.js does not work (because we cannot wait on
+// the strategy in frontend/js/i18n.ts does not work (because we cannot wait on
 // the promise to resolve).
 // Therefore we have to use the synchronous method for configuring
 // react-i18next. Because this, we can only hard-code a single language.
@@ -9,10 +9,14 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 // @ts-ignore
 import en from '../../../services/web/locales/en.json'
+import { bootstrapVersionArg } from './utils/with-bootstrap-switcher'
 
-function resetMeta() {
+function resetMeta(bootstrapVersion?: 3 | 5) {
   window.metaAttributesCache = new Map()
   window.metaAttributesCache.set('ol-i18n', { currentLangCode: 'en' })
+  if (bootstrapVersion) {
+    window.metaAttributesCache.set('ol-bootstrapVersion', bootstrapVersion)
+  }
   window.metaAttributesCache.set('ol-ExposedSettings', {
     adminEmail: 'placeholder@example.com',
     appName: 'Overleaf',
@@ -135,7 +139,6 @@ const preview: Preview = {
         items: [
           { value: 'main-', title: 'Default' },
           { value: 'main-light-', title: 'Light' },
-          { value: 'main-ieee-', title: 'IEEE' },
         ],
       },
     },
@@ -150,10 +153,10 @@ const preview: Preview = {
         bootstrap3Style: await import(
           `!!to-string-loader!css-loader!less-loader!../../../services/web/frontend/stylesheets/${theme}style.less`
         ),
-        // NOTE: this uses `${theme}style.scss` rather than `${theme}.scss`
-        // so that webpack only bundles files ending with "style.scss"
+        // Themes are applied differently in Bootstrap 5 code
         bootstrap5Style: await import(
-          `!!to-string-loader!css-loader!resolve-url-loader!sass-loader!../../../services/web/frontend/stylesheets/bootstrap-5/${theme}style.scss`
+          // @ts-ignore
+          `!!to-string-loader!css-loader!resolve-url-loader!sass-loader!../../../services/web/frontend/stylesheets/bootstrap-5/main-style.scss`
         ),
       }
     },
@@ -161,17 +164,28 @@ const preview: Preview = {
   decorators: [
     (Story, context) => {
       const { bootstrap3Style, bootstrap5Style } = context.loaded
-      const activeStyle = context.parameters.bootstrap5
-        ? bootstrap5Style
-        : bootstrap3Style
+      const bootstrapVersion = Number(
+        context.args[bootstrapVersionArg] ||
+          (context.parameters.bootstrap5 ? 5 : 3)
+      ) as 3 | 5
+      const activeStyle =
+        bootstrapVersion === 5 ? bootstrap5Style : bootstrap3Style
 
-      resetMeta()
+      resetMeta(bootstrapVersion)
 
       return (
-        <>
+        <div
+          data-theme={
+            context.globals.theme === 'main-light-' ? 'light' : 'default'
+          }
+        >
           {activeStyle && <style>{activeStyle.default}</style>}
-          <Story {...context} />
-        </>
+          <Story
+            {...context}
+            // force re-renders when switching between Bootstrap versions
+            key={bootstrapVersion}
+          />
+        </div>
       )
     },
   ],

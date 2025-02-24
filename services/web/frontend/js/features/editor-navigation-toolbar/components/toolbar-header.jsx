@@ -15,9 +15,20 @@ import ShareProjectButton from './share-project-button'
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
 import BackToEditorButton from './back-to-editor-button'
 import getMeta from '@/utils/meta'
+import { isSplitTestEnabled } from '@/utils/splitTestUtils'
+import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
 
 const [publishModalModules] = importOverleafModules('publishModal')
 const PublishButton = publishModalModules?.import.default
+
+const offlineModeToolbarButtons = importOverleafModules(
+  'offlineModeToolbarButtons'
+)
+// double opt-in
+const enableROMirrorOnClient =
+  isSplitTestEnabled('ro-mirror-on-client') &&
+  new URLSearchParams(window.location.search).get('ro-mirror-on-client') ===
+    'enabled'
 
 const ToolbarHeader = React.memo(function ToolbarHeader({
   cobranding,
@@ -40,12 +51,14 @@ const ToolbarHeader = React.memo(function ToolbarHeader({
   openShareModal,
   trackChangesVisible,
 }) {
+  const chatEnabled = getMeta('ol-chatEnabled')
+
   const { t } = useTranslation()
   const shouldDisplayPublishButton = hasPublishPermissions && PublishButton
 
   return (
     <header
-      className="toolbar toolbar-header toolbar-with-labels"
+      className="toolbar toolbar-header"
       role="navigation"
       aria-label={t('project_layout_sharing_submission')}
     >
@@ -55,8 +68,23 @@ const ToolbarHeader = React.memo(function ToolbarHeader({
           <CobrandingLogo {...cobranding} />
         )}
         <BackToProjectsButton />
+        {enableROMirrorOnClient &&
+          offlineModeToolbarButtons.map(
+            ({ path, import: { default: OfflineModeToolbarButton } }) => {
+              return <OfflineModeToolbarButton key={path} />
+            }
+          )}
       </div>
-      {getMeta('ol-showUpgradePrompt') && <UpgradePrompt />}
+      {getMeta('ol-showUpgradePrompt') && (
+        <BootstrapVersionSwitcher
+          bs3={<UpgradePrompt />}
+          bs5={
+            <div className="d-flex align-items-center">
+              <UpgradePrompt />
+            </div>
+          }
+        />
+      )}
       <ProjectNameEditableLabel
         className="toolbar-center"
         projectName={projectName}
@@ -68,7 +96,14 @@ const ToolbarHeader = React.memo(function ToolbarHeader({
         <OnlineUsersWidget onlineUsers={onlineUsers} goToUser={goToUser} />
 
         {historyIsOpen ? (
-          <BackToEditorButton onClick={toggleHistoryOpen} />
+          <BootstrapVersionSwitcher
+            bs3={<BackToEditorButton onClick={toggleHistoryOpen} />}
+            bs5={
+              <div className="d-flex align-items-center">
+                <BackToEditorButton onClick={toggleHistoryOpen} />
+              </div>
+            }
+          />
         ) : (
           <>
             {trackChangesVisible && (
@@ -90,7 +125,7 @@ const ToolbarHeader = React.memo(function ToolbarHeader({
 
             <LayoutDropdownButton />
 
-            {chatVisible && (
+            {chatEnabled && chatVisible && (
               <ChatToggleButton
                 chatIsOpen={chatIsOpen}
                 onClick={toggleChatOpen}

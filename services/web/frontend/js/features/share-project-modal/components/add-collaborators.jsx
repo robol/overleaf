@@ -1,17 +1,22 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Form, FormGroup, FormControl, Button } from 'react-bootstrap'
 import { useMultipleSelection } from 'downshift'
 import { useShareProjectContext } from './share-project-modal'
 import SelectCollaborators from './select-collaborators'
 import { resendInvite, sendInvite } from '../utils/api'
 import { useUserContacts } from '../hooks/use-user-contacts'
-import useIsMounted from '../../../shared/hooks/use-is-mounted'
-import { useProjectContext } from '../../../shared/context/project-context'
-import { sendMB } from '../../../infrastructure/event-tracking'
+import useIsMounted from '@/shared/hooks/use-is-mounted'
+import { useProjectContext } from '@/shared/context/project-context'
+import { sendMB } from '@/infrastructure/event-tracking'
 import ClickableElementEnhancer from '@/shared/components/clickable-element-enhancer'
+import PropTypes from 'prop-types'
+import OLForm from '@/features/ui/components/ol/ol-form'
+import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
+import OLFormSelect from '@/features/ui/components/ol/ol-form-select'
+import OLButton from '@/features/ui/components/ol/ol-button'
+import getMeta from '@/utils/meta'
 
-export default function AddCollaborators() {
+export default function AddCollaborators({ readOnly }) {
   const [privileges, setPrivileges] = useState('readAndWrite')
 
   const isMounted = useIsMounted()
@@ -45,6 +50,12 @@ export default function AddCollaborators() {
   })
 
   const { reset, selectedItems } = multipleSelectionProps
+
+  useEffect(() => {
+    if (readOnly && privileges === 'readAndWrite') {
+      setPrivileges('readOnly')
+    }
+  }, [privileges, readOnly])
 
   const handleSubmit = useCallback(async () => {
     if (!selectedItems.length) {
@@ -139,38 +150,48 @@ export default function AddCollaborators() {
   ])
 
   return (
-    <Form>
-      <FormGroup>
+    <OLForm className="add-collabs">
+      <OLFormGroup>
         <SelectCollaborators
           loading={!nonMemberContacts}
           options={nonMemberContacts || []}
-          placeholder="joe@example.com, sue@example.com, …"
+          placeholder="Email, comma separated"
           multipleSelectionProps={multipleSelectionProps}
         />
-      </FormGroup>
+      </OLFormGroup>
 
-      <FormGroup>
+      <OLFormGroup>
         <div className="pull-right">
-          <FormControl
-            componentClass="select"
+          <OLFormSelect
             className="privileges"
-            bsSize="sm"
             value={privileges}
             onChange={event => setPrivileges(event.target.value)}
+            bs3Props={{
+              bsSize: 'sm',
+            }}
           >
-            <option value="readAndWrite">{t('can_edit')}</option>
-            <option value="readOnly">{t('read_only')}</option>
-          </FormControl>
+            <option disabled={readOnly} value="readAndWrite">
+              {t('can_edit')}
+            </option>
+            {getMeta('ol-isReviewerRoleEnabled') && (
+              <option value="review">{t('can_review')}</option>
+            )}
+            <option value="readOnly">{t('can_view')}</option>
+          </OLFormSelect>
           <span>&nbsp;&nbsp;</span>
           <ClickableElementEnhancer
-            as={Button}
+            as={OLButton}
             onClick={handleSubmit}
-            bsStyle="primary"
+            variant="primary"
           >
-            {t('share')}
+            {t('invite')}
           </ClickableElementEnhancer>
         </div>
-      </FormGroup>
-    </Form>
+      </OLFormGroup>
+    </OLForm>
   )
+}
+
+AddCollaborators.propTypes = {
+  readOnly: PropTypes.bool,
 }

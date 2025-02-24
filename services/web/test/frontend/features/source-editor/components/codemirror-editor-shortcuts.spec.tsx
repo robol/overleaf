@@ -1,3 +1,4 @@
+import '../../../helpers/bootstrap-3'
 import { mockScope } from '../helpers/mock-scope'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import CodeMirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
@@ -13,7 +14,6 @@ describe('keyboard shortcuts', { scrollBehavior: false }, function () {
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
     cy.interceptEvents()
     cy.interceptMetadata()
-    cy.interceptSpelling()
 
     const scope = mockScope()
 
@@ -126,7 +126,7 @@ describe('emacs keybindings', { scrollBehavior: false }, function () {
   beforeEach(function () {
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
     cy.interceptEvents()
-    cy.interceptSpelling()
+    cy.interceptMetadata()
 
     const shortDoc = `
 \\documentclass{article}
@@ -228,7 +228,7 @@ describe('vim keybindings', { scrollBehavior: false }, function () {
   beforeEach(function () {
     window.metaAttributesCache.set('ol-preventCompileOnLoad', true)
     cy.interceptEvents()
-    cy.interceptSpelling()
+    cy.interceptMetadata()
 
     // Make a short doc that will fit entirely into the dom tree, so that
     // index() corresponds to line number - 1

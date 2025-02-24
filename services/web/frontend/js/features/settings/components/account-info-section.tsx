@@ -88,6 +88,7 @@ function AccountInfoSection() {
           type="text"
           label={t('first_name')}
           value={firstName}
+          maxLength={255}
           handleChange={handleFirstNameChange}
           canEdit={canUpdateNames}
           required={false}
@@ -96,6 +97,7 @@ function AccountInfoSection() {
           id="last-name-input"
           type="text"
           label={t('last_name')}
+          maxLength={255}
           value={lastName}
           handleChange={handleLastNameChange}
           canEdit={canUpdateNames}
@@ -118,18 +120,20 @@ function AccountInfoSection() {
           </OLFormGroup>
         ) : null}
         {canUpdateEmail || canUpdateNames ? (
-          <OLButton
-            type="submit"
-            variant="primary"
-            form="account-info-form"
-            disabled={!isFormValid}
-            isLoading={isLoading}
-            bs3Props={{
-              loading: isLoading ? `${t('saving')}…` : t('update'),
-            }}
-          >
-            {t('update')}
-          </OLButton>
+          <OLFormGroup>
+            <OLButton
+              type="submit"
+              variant="primary"
+              form="account-info-form"
+              disabled={!isFormValid}
+              isLoading={isLoading}
+              bs3Props={{
+                loading: isLoading ? `${t('saving')}…` : t('update'),
+              }}
+            >
+              {t('update')}
+            </OLButton>
+          </OLFormGroup>
         ) : null}
       </form>
     </>
@@ -143,6 +147,7 @@ type ReadOrWriteFormGroupProps = {
   value?: string
   handleChange: (event: any) => void
   canEdit: boolean
+  maxLength?: number
   required: boolean
 }
 
@@ -153,6 +158,7 @@ function ReadOrWriteFormGroup({
   value,
   handleChange,
   canEdit,
+  maxLength,
   required,
 }: ReadOrWriteFormGroupProps) {
   const [validationMessage, setValidationMessage] = useState('')
@@ -184,11 +190,14 @@ function ReadOrWriteFormGroup({
         type={type}
         required={required}
         value={value}
+        maxLength={maxLength}
         data-ol-dirty={!!validationMessage}
         onChange={handleChangeAndValidity}
         onInvalid={handleInvalid}
       />
-      {validationMessage && <FormText isError>{validationMessage}</FormText>}
+      {validationMessage && (
+        <FormText type="error">{validationMessage}</FormText>
+      )}
     </OLFormGroup>
   )
 }

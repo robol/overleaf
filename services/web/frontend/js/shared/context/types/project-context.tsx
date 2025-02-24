@@ -1,17 +1,21 @@
 import { UserId } from '../../../../../types/user'
 import { PublicAccessLevel } from '../../../../../types/public-access-level'
-import type * as ReviewPanel from '@/features/source-editor/context/review-panel/types/review-panel-state'
+import { ProjectSnapshot } from '@/infrastructure/project-snapshot'
 
 export type ProjectContextMember = {
   _id: UserId
   privileges: 'readOnly' | 'readAndWrite'
   email: string
+  first_name: string
+  last_name: string
+  pendingEditor?: boolean
 }
 
 export type ProjectContextValue = {
   _id: string
   name: string
   rootDocId?: string
+  mainBibliographyDocId?: string
   compiler: string
   members: ProjectContextMember[]
   invites: ProjectContextMember[]
@@ -32,13 +36,18 @@ export type ProjectContextValue = {
   owner: {
     _id: UserId
     email: string
+    first_name: string
+    last_name: string
+    privileges: string
+    signUpDate: string
   }
   tags: {
     _id: string
     name: string
     color?: string
   }[]
-  trackChangesState: ReviewPanel.Value<'trackChangesState'>
+  trackChangesState: boolean | Record<UserId | '__guests__', boolean>
+  projectSnapshot: ProjectSnapshot
 }
 
 export type ProjectContextUpdateValue = Partial<ProjectContextValue>

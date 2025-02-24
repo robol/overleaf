@@ -2,6 +2,8 @@ import ChatPane from '../js/features/chat/components/chat-pane'
 import useFetchMock from './hooks/use-fetch-mock'
 import { generateMessages } from './fixtures/chat-messages'
 import { ScopeDecorator } from './decorators/scope'
+import { bsVersionDecorator } from '../../.storybook/utils/with-bootstrap-switcher'
+import { UserProvider } from '@/shared/context/user-context'
 
 export const Conversation = args => {
   useFetchMock(fetchMock => {
@@ -42,9 +44,17 @@ export default {
   component: ChatPane,
   argTypes: {
     resetUnreadMessages: { action: 'resetUnreadMessages' },
+    ...bsVersionDecorator.argTypes,
   },
   args: {
     resetUnreadMessages: () => {},
   },
-  decorators: [ScopeDecorator],
+  decorators: [
+    ScopeDecorator,
+    Story => (
+      <UserProvider>
+        <Story />
+      </UserProvider>
+    ),
+  ],
 }

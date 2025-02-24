@@ -5,6 +5,7 @@ const fixtures = require('./support/fixtures')
 const { expect } = require('chai')
 const sinon = require('sinon')
 const { ObjectId } = require('mongodb')
+const { projects } = require('../../../../storage/lib/mongodb')
 
 const {
   Chunk,
@@ -27,20 +28,27 @@ describe('chunkStore', function () {
     {
       description: 'Postgres backend',
       createProject: chunkStore.initializeProject,
+      idMapping: id => parseInt(id, 10),
     },
     {
       description: 'Mongo backend',
       createProject: () =>
         chunkStore.initializeProject(new ObjectId().toString()),
+      idMapping: id => id,
     },
   ]
 
   for (const scenario of scenarios) {
     describe(scenario.description, function () {
       let projectId
+      let projectRecord
 
       beforeEach(async function () {
         projectId = await scenario.createProject()
+        // create a record in the mongo projects collection
+        projectRecord = await projects.insertOne({
+          overleaf: { history: { id: scenario.idMapping(projectId) } },
+        })
       })
 
       it('loads empty latest chunk for a new project', async function () {
@@ -69,6 +77,26 @@ describe('chunkStore', function () {
           await chunkStore.update(projectId, oldEndVersion, chunk)
         })
 
+        it('records the correct metadata in db readOnly=false', async function () {
+          const raw = await chunkStore.loadLatestRaw(projectId)
+          expect(raw).to.deep.include({
+            startVersion: 0,
+            endVersion: 2,
+            endTimestamp: lastChangeTimestamp,
+          })
+        })
+
+        it('records the correct metadata in db readOnly=true', async function () {
+          const raw = await chunkStore.loadLatestRaw(projectId, {
+            readOnly: true,
+          })
+          expect(raw).to.deep.include({
+            startVersion: 0,
+            endVersion: 2,
+            endTimestamp: lastChangeTimestamp,
+          })
+        })
+
         it('records the correct timestamp', async function () {
           const chunk = await chunkStore.loadLatest(projectId)
           expect(chunk.getEndTimestamp()).to.deep.equal(lastChangeTimestamp)
@@ -93,6 +121,19 @@ describe('chunkStore', function () {
           const editFile = editChange.getOperations()[0]
           expect(editFile).to.be.an.instanceof(EditFileOperation)
           expect(editFile.getPathname()).to.equal(testPathname)
+        })
+
+        it('updates the project record with the current version and timestamps', async function () {
+          const project = await projects.findOne({
+            _id: new ObjectId(projectRecord.insertedId),
+          })
+          expect(project.overleaf.history.currentEndVersion).to.equal(2)
+          expect(project.overleaf.history.currentEndTimestamp).to.deep.equal(
+            lastChangeTimestamp
+          )
+          expect(project.overleaf.backup.pendingChangeAt).to.deep.equal(
+            lastChangeTimestamp
+          )
         })
       })
 
@@ -212,6 +253,25 @@ describe('chunkStore', function () {
           expect(chunk).to.deep.equal(thirdChunk)
         })
 
+        it('updates the project record to match the last chunk', async function () {
+          const project = await projects.findOne({
+            _id: new ObjectId(projectRecord.insertedId),
+          })
+          expect(project.overleaf.history.currentEndVersion).to.equal(5)
+          expect(project.overleaf.history.currentEndTimestamp).to.deep.equal(
+            thirdChunkTimestamp
+          )
+        })
+
+        it('updates the pending change timestamp to match the first chunk', async function () {
+          const project = await projects.findOne({
+            _id: new ObjectId(projectRecord.insertedId),
+          })
+          expect(project.overleaf.backup.pendingChangeAt).to.deep.equal(
+            firstChunkTimestamp
+          )
+        })
+
         describe('after updating the last chunk', function () {
           let newChunk
 
@@ -245,6 +305,25 @@ describe('chunkStore', function () {
               thirdChunkTimestamp
             )
             expect(chunk).to.deep.equal(newChunk)
+          })
+
+          it('updates the project record to match the latest version and timestamp', async function () {
+            const project = await projects.findOne({
+              _id: new ObjectId(projectRecord.insertedId),
+            })
+            expect(project.overleaf.history.currentEndVersion).to.equal(6)
+            expect(project.overleaf.history.currentEndTimestamp).to.deep.equal(
+              thirdChunkTimestamp
+            )
+          })
+
+          it('does not modify the existing pending change timestamp in the project record', async function () {
+            const project = await projects.findOne({
+              _id: new ObjectId(projectRecord.insertedId),
+            })
+            expect(project.overleaf.backup.pendingChangeAt).to.deep.equal(
+              firstChunkTimestamp
+            )
           })
         })
       })

@@ -1,5 +1,6 @@
 import { StateEffect, StateField } from '@codemirror/state'
 import { EditorView, showPanel } from '@codemirror/view'
+import { isBootstrap5 } from '@/features/utils/bootstrap-5'
 
 const toggleToolbarEffect = StateEffect.define<boolean>()
 const toolbarState = StateField.define<boolean>({
@@ -43,10 +44,13 @@ const toolbarTheme = EditorView.theme({
     borderColor: 'rgba(125, 125, 125, 0.2)',
     backgroundColor: 'var(--editor-toolbar-bg)',
     color: 'var(--toolbar-btn-color)',
-    '& .popover-content': {
+    '& .popover-content, & .popover-body': {
       padding: 0,
     },
-    '& .arrow': {
+    '& .popover-body': {
+      color: 'inherit',
+    },
+    '& .arrow, & .popover-arrow': {
       borderBottomColor: 'rgba(125, 125, 125, 0.2)',
       '&:after': {
         borderBottomColor: 'var(--editor-toolbar-bg)',
@@ -54,10 +58,12 @@ const toolbarTheme = EditorView.theme({
     },
   },
   '.ol-cm-toolbar-button-menu-popover': {
-    '& > .popover-content': {
+    backgroundColor: 'initial',
+    '& > .popover-content, & > .popover-body': {
       padding: 0,
+      color: 'initial',
     },
-    '& .arrow': {
+    '& .arrow, & .popover-arrow': {
       display: 'none',
     },
     '& .list-group': {
@@ -111,11 +117,12 @@ const toolbarTheme = EditorView.theme({
     margin: '0 1px',
     backgroundColor: 'transparent',
     border: 'none',
-    borderRadius: '1px',
+    borderRadius: isBootstrap5() ? 'var(--border-radius-base)' : '1px',
     lineHeight: '1',
     width: '24px',
     height: '24px',
     overflow: 'hidden',
+    color: 'inherit',
     '&:hover, &:focus, &:active, &.active': {
       backgroundColor: 'rgba(125, 125, 125, 0.1)',
       color: 'inherit',
@@ -166,15 +173,12 @@ const toolbarTheme = EditorView.theme({
   },
   '.ol-cm-toolbar-menu-toggle': {
     background: 'transparent',
-    boxShadow: 'none !important',
     border: 'none',
-    whiteSpace: 'nowrap',
     color: 'inherit',
-    borderRadius: '0',
+    borderRadius: isBootstrap5() ? 'var(--border-radius-base)' : '0',
     opacity: 0.8,
     width: '120px',
     fontSize: '13px',
-    fontFamily: 'Lato',
     fontWeight: '700',
     display: 'flex',
     alignItems: 'center',
@@ -204,11 +208,12 @@ const toolbarTheme = EditorView.theme({
     '&.top': {
       marginBottom: '1px',
     },
-    '& .arrow': {
+    '& .arrow, & .popover-arrow': {
       display: 'none',
     },
-    '& .popover-content': {
+    '& .popover-content, & > .popover-body': {
       padding: '0',
+      color: 'inherit',
     },
     '& .ol-cm-toolbar-menu': {
       width: '120px',
@@ -225,6 +230,7 @@ const toolbarTheme = EditorView.theme({
       display: 'flex',
       alignItems: 'center',
       fontWeight: 'bold',
+      color: 'inherit',
       '&.ol-cm-toolbar-menu-item-active': {
         backgroundColor: 'rgba(125, 125, 125, 0.1)',
       },
@@ -242,9 +248,6 @@ const toolbarTheme = EditorView.theme({
         fontWeight: 'normal',
       },
     },
-  },
-  '&.overall-theme-dark .ol-cm-toolbar-table-grid-popover': {
-    color: '#fff',
   },
   '&.overall-theme-dark .ol-cm-toolbar-table-grid': {
     '& td.active': {
@@ -282,6 +285,7 @@ const toolbarTheme = EditorView.theme({
     borderRadius: '4px',
     backgroundColor: 'var(--editor-toolbar-bg)',
     pointerEvents: 'all',
+    color: 'var(--toolbar-btn-color)',
   },
   '.ol-cm-toolbar-button-menu-popover-unstyled': {
     maxWidth: 'unset',

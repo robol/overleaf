@@ -30,6 +30,80 @@ describe('PermissionsManager', function () {
     this.PermissionsManager.registerCapability('capability4', {
       default: false,
     })
+    this.PermissionsManager.registerPolicy('openPolicy', {
+      capability1: true,
+      capability2: true,
+    })
+    this.PermissionsManager.registerPolicy('restrictivePolicy', {
+      capability1: true,
+      capability2: false,
+    })
+    this.openPolicyResponseSet = [
+      [
+        {
+          managedUsersEnabled: true,
+          groupPolicy: { openPolicy: true },
+        },
+        {
+          managedUsersEnabled: true,
+          groupPolicy: { openPolicy: true },
+        },
+      ],
+    ]
+    this.restrictivePolicyResponseSet = [
+      [
+        {
+          managedUsersEnabled: true,
+          groupPolicy: { openPolicy: true },
+        },
+        {
+          managedUsersEnabled: true,
+          groupPolicy: { restrictivePolicy: true },
+        },
+      ],
+    ]
+  })
+
+  describe('validatePolicies', function () {
+    it('accepts empty object', function () {
+      expect(() => this.PermissionsManager.validatePolicies({})).not.to.throw
+    })
+
+    it('accepts object with registered policies', function () {
+      expect(() =>
+        this.PermissionsManager.validatePolicies({
+          openPolicy: true,
+          restrictivePolicy: false,
+        })
+      ).not.to.throw
+    })
+
+    it('accepts object with policies containing non-boolean values', function () {
+      expect(() =>
+        this.PermissionsManager.validatePolicies({
+          openPolicy: 1,
+        })
+      ).to.throw('policy value must be a boolean: openPolicy = 1')
+      expect(() =>
+        this.PermissionsManager.validatePolicies({
+          openPolicy: undefined,
+        })
+      ).to.throw('policy value must be a boolean: openPolicy = undefined')
+      expect(() =>
+        this.PermissionsManager.validatePolicies({
+          openPolicy: null,
+        })
+      ).to.throw('policy value must be a boolean: openPolicy = null')
+    })
+
+    it('throws error on object with policies that are not registered', function () {
+      expect(() =>
+        this.PermissionsManager.validatePolicies({
+          openPolicy: true,
+          unregisteredPolicy: false,
+        })
+      ).to.throw('unknown policy: unregisteredPolicy')
+    })
   })
 
   describe('hasPermission', function () {
@@ -715,6 +789,38 @@ describe('PermissionsManager', function () {
         policy3: true,
         policy4: true,
       })
+    })
+  })
+
+  describe('checkUserListPermissions', function () {
+    it('should return true when all users have permissions required', async function () {
+      const userList = ['user1', 'user2', 'user3']
+      const capabilities = ['capability1', 'capability2']
+      this.hooksFire.onCall(0).resolves(this.openPolicyResponseSet)
+      this.hooksFire.onCall(1).resolves(this.openPolicyResponseSet)
+      this.hooksFire.onCall(2).resolves(this.openPolicyResponseSet)
+
+      const usersHavePermission =
+        await this.PermissionsManager.promises.checkUserListPermissions(
+          userList,
+          capabilities
+        )
+      expect(usersHavePermission).to.equal(true)
+    })
+
+    it('should return false if any user does not have permission', async function () {
+      const userList = ['user1', 'user2', 'user3']
+      const capabilities = ['capability1', 'capability2']
+      this.hooksFire.onCall(0).resolves(this.openPolicyResponseSet)
+      this.hooksFire.onCall(1).resolves(this.restrictivePolicyResponseSet)
+      this.hooksFire.onCall(2).resolves(this.openPolicyResponseSet)
+
+      const usersHavePermission =
+        await this.PermissionsManager.promises.checkUserListPermissions(
+          userList,
+          capabilities
+        )
+      expect(usersHavePermission).to.equal(false)
     })
   })
 })

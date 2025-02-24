@@ -1,6 +1,6 @@
 # Dockerfile for git-bridge
 
-FROM maven:3-amazoncorretto-21-debian as base
+FROM maven:3-amazoncorretto-21-debian AS base
 
 RUN apt-get update && apt-get install -y make git sqlite3 \
  && rm -rf /var/lib/apt/lists
@@ -10,7 +10,7 @@ RUN chmod +x /opt/envsubst
 
 RUN useradd --create-home node
 
-FROM base as builder
+FROM base AS builder
 
 COPY . /app
 
@@ -28,11 +28,6 @@ FROM amazoncorretto:21-alpine
 RUN apk add --update --no-cache bash git sqlite procps htop net-tools jemalloc util-linux
 
 ENV LD_PRELOAD=/usr/lib/libjemalloc.so.2
-
-# Install Google Cloud Profiler agent
-RUN mkdir -p /opt/cprof && \
-  wget -q -O- https://storage.googleapis.com/cloud-profiler/java/latest/profiler_java_agent.tar.gz \
-  | tar xzv -C /opt/cprof
 
 RUN adduser -D node
 

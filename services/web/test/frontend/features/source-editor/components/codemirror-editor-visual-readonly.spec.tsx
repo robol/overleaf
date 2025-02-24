@@ -1,3 +1,4 @@
+import '../../../helpers/bootstrap-3'
 import { mockScope } from '../helpers/mock-scope'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
@@ -26,9 +27,13 @@ const PermissionsProvider: FC = ({ children }) => (
   <PermissionsContext.Provider
     value={{
       read: true,
+      comment: true,
+      resolveOwnComments: false,
+      resolveAllComments: false,
+      trackedWrite: false,
       write: false,
       admin: false,
-      comment: true,
+      labelVersion: false,
     }}
   >
     {children}
@@ -38,6 +43,7 @@ const PermissionsProvider: FC = ({ children }) => (
 const mountEditor = (content: string) => {
   const scope = mockScope(content)
   scope.permissions.write = false
+  scope.permissions.trackedWrite = false
   scope.editor.showVisual = true
 
   cy.mount(
@@ -61,7 +67,6 @@ describe('<CodeMirrorEditor/> in Visual mode with read-only permission', functio
     cy.interceptMathJax()
     cy.interceptEvents()
     cy.interceptMetadata()
-    cy.interceptSpelling()
   })
 
   it('decorates footnote content', function () {

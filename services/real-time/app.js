@@ -13,9 +13,6 @@ Metrics.open_sockets.monitor()
 const express = require('express')
 const session = require('express-session')
 const redis = require('@overleaf/redis-wrapper')
-if (Settings.sentry && Settings.sentry.dsn) {
-  logger.initializeErrorReporting(Settings.sentry.dsn)
-}
 
 const sessionRedisClient = redis.createClient(Settings.redis.websessions)
 
@@ -27,7 +24,7 @@ const DrainManager = require('./app/js/DrainManager')
 const HealthCheckManager = require('./app/js/HealthCheckManager')
 const DeploymentManager = require('./app/js/DeploymentManager')
 
-const Path = require('path')
+const Path = require('node:path')
 
 // NOTE: debug is invoked for every blob that is put on the wire
 const socketIoLogger = {
@@ -48,7 +45,7 @@ DeploymentManager.initialise()
 // Set up socket.io server
 const app = express()
 
-const server = require('http').createServer(app)
+const server = require('node:http').createServer(app)
 server.keepAliveTimeout = Settings.keepAliveTimeoutMs
 const io = require('socket.io').listen(server, {
   logger: socketIoLogger,
@@ -265,7 +262,11 @@ if (Settings.shutdownDrainTimeWindow) {
           'EPIPE',
           'ECONNRESET',
           'ERR_STREAM_WRITE_AFTER_END',
-        ].includes(error.code)
+        ].includes(error.code) ||
+        // socket.io error handler sending on polling connection again.
+        (error.code === 'ERR_HTTP_HEADERS_SENT' &&
+          error.stack &&
+          error.stack.includes('Transport.error'))
       ) {
         Metrics.inc('disconnected_write', 1, { status: error.code })
         return logger.warn(

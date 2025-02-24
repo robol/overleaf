@@ -1,3 +1,4 @@
+import '../../../helpers/bootstrap-3'
 import { useState } from 'react'
 import ToggleSwitch from '../../../../../frontend/js/features/history/components/change-list/toggle-switch'
 import ChangeList from '../../../../../frontend/js/features/history/components/change-list/change-list'
@@ -9,10 +10,7 @@ import {
 import { HistoryProvider } from '../../../../../frontend/js/features/history/context/history-context'
 import { updates } from '../fixtures/updates'
 import { labels } from '../fixtures/labels'
-import {
-  formatTime,
-  relativeDate,
-} from '../../../../../frontend/js/features/utils/format-date'
+import { formatTime, relativeDate } from '@/features/utils/format-date'
 
 const mountWithEditorProviders = (
   component: React.ReactNode,
@@ -30,7 +28,7 @@ const mountWithEditorProviders = (
   )
 }
 
-describe('change list', function () {
+describe('change list (Bootstrap 3)', function () {
   const scope = {
     ui: { view: 'history', pdfLayout: 'sideBySide', chatOpen: true },
   }
@@ -362,7 +360,7 @@ describe('change list', function () {
       cy.findAllByTestId('history-version-details')
         .eq(1)
         .within(() => {
-          cy.findByRole('button', { name: /compare drop down/i }).click()
+          cy.findByRole('button', { name: /compare/i }).click()
           cy.findByRole('menu').within(() => {
             cy.findByRole('menuitem', {
               name: /compare up to this version/i,

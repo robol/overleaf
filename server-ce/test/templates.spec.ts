@@ -48,7 +48,7 @@ describe('Templates', () => {
     })
 
     it('should have templates feature', () => {
-      const resumeTemplatesUserSession = login(TEMPLATES_USER)
+      login(TEMPLATES_USER)
       const name = `Template ${Date.now()}`
       const description = `Template Description ${Date.now()}`
 
@@ -64,7 +64,7 @@ describe('Templates', () => {
         .get('textarea')
         .type(description)
       cy.findByText('Publish').click()
-      cy.findByText('Publishing…').should('be.disabled')
+      cy.findByText('Publishing…').parent().should('be.disabled')
       cy.findByText('Publish').should('not.exist')
       cy.findByText('Unpublish', { timeout: 10_000 })
       cy.findByText('Republish')
@@ -182,7 +182,8 @@ describe('Templates', () => {
       cy.findByText('Manage Template').click()
       cy.findByText('Unpublish')
 
-      resumeTemplatesUserSession()
+      // Back to templates user
+      login(TEMPLATES_USER)
 
       // Unpublish via editor
       cy.get('@templateProjectId').then(projectId =>
@@ -202,6 +203,7 @@ describe('Templates', () => {
         .click()
       cy.findAllByText('All Templates')
         .first()
+        .parent()
         .should('have.attr', 'href', '/templates/all')
     })
   })

@@ -45,7 +45,7 @@ clean:
 	-COMPOSE_PROJECT_NAME=acceptance_modules_merged_saas_4_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down --rmi local
 	-COMPOSE_PROJECT_NAME=acceptance_modules_merged_server_ce_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down --rmi local
 	-COMPOSE_PROJECT_NAME=acceptance_modules_merged_server_pro_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down --rmi local
-	-COMPOSE_PROJECT_NAME=frontend_test_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down --rmi local
+	-COMPOSE_PROJECT_NAME=test_frontend_ct_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down --rmi local
 	-COMPOSE_PROJECT_NAME=tar_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down --rmi local
 
 clean_ci:
@@ -67,18 +67,20 @@ test_module: test_unit_module test_acceptance_module
 #
 
 test_unit: test_unit_all
+test_unit_all: export COMPOSE_PROJECT_NAME=unit_test_all_$(BUILD_DIR_NAME)
 test_unit_all:
-	COMPOSE_PROJECT_NAME=unit_test_all_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) run --rm test_unit npm run test:unit:all
-	COMPOSE_PROJECT_NAME=unit_test_all_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down -v -t 0
+	$(DOCKER_COMPOSE) run --rm test_unit npm run test:unit:all
+	$(DOCKER_COMPOSE) down -v -t 0
 
+test_unit_all_silent: export COMPOSE_PROJECT_NAME=unit_test_all_$(BUILD_DIR_NAME)
 test_unit_all_silent:
-	COMPOSE_PROJECT_NAME=unit_test_all_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) run --rm test_unit npm run test:unit:all:silent
-	COMPOSE_PROJECT_NAME=unit_test_all_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down -v -t 0
+	$(DOCKER_COMPOSE) run --rm test_unit npm run test:unit:all:silent
+	$(DOCKER_COMPOSE) down -v -t 0
 
+test_unit_app: export COMPOSE_PROJECT_NAME=unit_test_$(BUILD_DIR_NAME)
 test_unit_app:
-	COMPOSE_PROJECT_NAME=unit_test_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down -v -t 0
-	COMPOSE_PROJECT_NAME=unit_test_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) run --name unit_test_$(BUILD_DIR_NAME) --rm test_unit
-	COMPOSE_PROJECT_NAME=unit_test_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down -v -t 0
+	$(DOCKER_COMPOSE) run --name unit_test_$(BUILD_DIR_NAME) --rm test_unit
+	$(DOCKER_COMPOSE) down -v -t 0
 
 TEST_SUITES = $(sort $(filter-out \
 	$(wildcard test/unit/src/helpers/*), \
@@ -101,7 +103,6 @@ test_unit_app_parallel_gnu_make: $(TEST_SUITES)
 test_unit_app_parallel_gnu_make_docker: export COMPOSE_PROJECT_NAME = \
 	unit_test_parallel_make_$(BUILD_DIR_NAME)
 test_unit_app_parallel_gnu_make_docker:
-	$(DOCKER_COMPOSE) down -v -t 0
 	$(DOCKER_COMPOSE) run --rm test_unit \
 		make test_unit_app_parallel_gnu_make --output-sync -j $(J)
 	$(DOCKER_COMPOSE) down -v -t 0
@@ -119,53 +120,51 @@ test_unit_module:
 #
 
 test_frontend:
-	COMPOSE_PROJECT_NAME=frontend_test_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down -v -t 0
 	COMPOSE_PROJECT_NAME=frontend_test_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) run --rm test_frontend
 	COMPOSE_PROJECT_NAME=frontend_test_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down -v -t 0
 
 #
 # Frontend component tests in Cypress
 #
-
-test_frontend_ct:
-	COMPOSE_PROJECT_NAME=frontend_test_ct_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down -v -t 0
-	COMPOSE_PROJECT_NAME=frontend_test_ct_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) run --rm test_frontend_ct
-	COMPOSE_PROJECT_NAME=frontend_test_ct_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down -v -t 0
+# Local development: use $ make test_frontend_ct
+#
+TEST_FRONTEND_CT_VARIANTS = \
+	test_frontend_ct \
+	test_frontend_ct_core_other \
+	test_frontend_ct_core_features \
+	test_frontend_ct_modules \
+	test_frontend_ct_editor_other \
+	test_frontend_ct_editor_visual \
 
 # Note: The below cypress targets are for CI only
 build_test_frontend_ct:
-	COMPOSE_PROJECT_NAME=frontend_test_ct_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) build test_frontend_ct
-	# Note: The 2nd build should use the cache from the 1st build.
-	COMPOSE_PROJECT_NAME=frontend_test_ct_editor_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) build test_frontend_ct
+	docker run --rm --volume /dev/shm:/dev/shm --user root $(IMAGE_CI) bash -ec 'tar -cC / overleaf | tar -xC /dev/shm'
 
-test_frontend_ct_core: export CYPRESS_RESULTS=./cypress/results/core
-test_frontend_ct_core: export CYPRESS_SPEC_PATTERN=./{test,modules/**/test}/frontend/**/*.spec.{js,jsx,ts,tsx}
-test_frontend_ct_core: export CYPRESS_EXCLUDE_SPEC_PATTERN=./test/frontend/features/source-editor/**/*.spec.{js,jsx,ts,tsx}
-test_frontend_ct_core:
-	COMPOSE_PROJECT_NAME=frontend_test_ct_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down -v -t 0
-	COMPOSE_PROJECT_NAME=frontend_test_ct_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) run --rm test_frontend_ct
-	COMPOSE_PROJECT_NAME=frontend_test_ct_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down -v -t 0
+test_frontend_ct_core_other: export CYPRESS_RESULTS=./cypress/results/core
+test_frontend_ct_core_other: export CYPRESS_SPEC_PATTERN=./test/frontend/**/*.spec.{js,jsx,ts,tsx}
+test_frontend_ct_core_other: export CYPRESS_EXCLUDE_SPEC_PATTERN=./test/frontend/features/**/*.spec.{js,jsx,ts,tsx}
 
-test_frontend_ct_editor: export CYPRESS_RESULTS=./cypress/results/editor
-test_frontend_ct_editor: export CYPRESS_SPEC_PATTERN=./test/frontend/features/source-editor/**/*.spec.{js,jsx,ts,tsx}
-test_frontend_ct_editor:
-	COMPOSE_PROJECT_NAME=frontend_test_ct_editor_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down -v -t 0
-	COMPOSE_PROJECT_NAME=frontend_test_ct_editor_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) run --rm test_frontend_ct
-	COMPOSE_PROJECT_NAME=frontend_test_ct_editor_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down -v -t 0
+test_frontend_ct_core_features: export CYPRESS_RESULTS=./cypress/results/core
+test_frontend_ct_core_features: export CYPRESS_SPEC_PATTERN=./test/frontend/features/**/*.spec.{js,jsx,ts,tsx}
+test_frontend_ct_core_features: export CYPRESS_EXCLUDE_SPEC_PATTERN=./test/frontend/features/source-editor/**/*.spec.{js,jsx,ts,tsx}
+
+test_frontend_ct_modules: export CYPRESS_RESULTS=./cypress/results/modules
+test_frontend_ct_modules: export CYPRESS_SPEC_PATTERN=./modules/**/test/frontend/**/*.spec.{js,jsx,ts,tsx}
+
+test_frontend_ct_editor_other: export CYPRESS_RESULTS=./cypress/results/editor_other
+test_frontend_ct_editor_other: export CYPRESS_SPEC_PATTERN=./test/frontend/features/source-editor/**/*.spec.{js,jsx,ts,tsx}
+test_frontend_ct_editor_other: export CYPRESS_EXCLUDE_SPEC_PATTERN=./test/frontend/features/source-editor/components/codemirror-editor-visual*.spec.{js,jsx,ts,tsx}
+
+test_frontend_ct_editor_visual: export CYPRESS_RESULTS=./cypress/results/editor_visual
+test_frontend_ct_editor_visual: export CYPRESS_SPEC_PATTERN=./test/frontend/features/source-editor/components/codemirror-editor-visual*.spec.{js,jsx,ts,tsx}
+
+$(TEST_FRONTEND_CT_VARIANTS):
+	COMPOSE_PROJECT_NAME=$@_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) run --rm test_frontend_ct
+	COMPOSE_PROJECT_NAME=$@_$(BUILD_DIR_NAME) $(DOCKER_COMPOSE) down -v -t 0
 
 #
 # Acceptance tests
 #
-
-# Keep in sync with TEST_ACCEPTANCE_MONGO_INIT in Makefile.module
-TEST_ACCEPTANCE_MONGO_INIT := \
-	$(DOCKER_COMPOSE) up -d mongo; \
-	$(DOCKER_COMPOSE) exec -T mongo sh -c ' \
-		while ! mongosh --eval "db.version()" > /dev/null; do \
-			echo "Waiting for Mongo..."; \
-			sleep 1; \
-		done; \
-		mongosh --eval "rs.initiate({ _id: \"overleaf\", members: [ { _id: 0, host: \"mongo:27017\" } ] })"'
 
 test_acceptance: test_acceptance_app test_acceptance_modules
 test_acceptance_saas: test_acceptance_app_saas test_acceptance_modules_merged_saas
@@ -186,8 +185,6 @@ test_acceptance_app_server_pro: export COMPOSE_PROJECT_NAME=acceptance_test_serv
 test_acceptance_app_server_pro: export OVERLEAF_CONFIG=$(CFG_SERVER_PRO)
 
 $(TEST_ACCEPTANCE_APP):
-	$(DOCKER_COMPOSE) down -v -t 0
-	$(TEST_ACCEPTANCE_MONGO_INIT)
 	$(DOCKER_COMPOSE) run --rm test_acceptance
 	$(DOCKER_COMPOSE) down -v -t 0
 
@@ -335,8 +332,6 @@ TEST_ACCEPTANCE_MODULES_MERGED_VARIANTS = \
 	test_acceptance_modules_merged_server_pro \
 
 $(TEST_ACCEPTANCE_MODULES_MERGED_VARIANTS):
-	$(DOCKER_COMPOSE) down -v -t 0
-	$(TEST_ACCEPTANCE_MONGO_INIT)
 	$(DOCKER_COMPOSE) run --rm test_acceptance make test_acceptance_modules_merged_inner
 	$(DOCKER_COMPOSE) down -v -t 0
 
@@ -358,8 +353,6 @@ test_acceptance_modules_merged_saas_4: export COMPOSE_PROJECT_NAME = \
 $(TEST_ACCEPTANCE_MODULES_MERGED_SPLIT_SAAS): export BASE_CONFIG = $(CFG_SAAS)
 
 $(TEST_ACCEPTANCE_MODULES_MERGED_SPLIT_SAAS): test_acceptance_modules_merged_saas_%:
-	$(DOCKER_COMPOSE) down -v -t 0
-	$(TEST_ACCEPTANCE_MONGO_INIT)
 	$(DOCKER_COMPOSE) run --rm test_acceptance make test_acceptance_modules_merged_inner_$*
 	$(DOCKER_COMPOSE) down -v -t 0
 
@@ -423,13 +416,17 @@ lint: lint_flag_res_send_usage
 lint_flag_res_send_usage:
 	bin/lint_flag_res_send_usage
 
+lint: lint_overleafModuleImports
+lint_overleafModuleImports:
+	node scripts/check_overleafModuleImports.mjs
+
 lint: typecheck_frontend
 typecheck_frontend:
-	npx -p typescript tsc --noEmit
+	npm run --silent type-check
 
 lint: typecheck_backend
 typecheck_backend:
-	npx -p typescript tsc -p tsconfig.backend.json --noEmit
+	npm run --silent type-check:backend
 
 lint_in_docker:
 	$(RUN_LINT_FORMAT) make lint -j2 --output-sync

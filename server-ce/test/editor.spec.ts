@@ -66,11 +66,9 @@ describe('editor', () => {
 
   describe('collaboration', () => {
     let projectId: string
-    let resumeUserSession: () => void
-    let resumeCollaboratorSession: () => void
 
     beforeEach(() => {
-      resumeUserSession = login('user@example.com')
+      login('user@example.com')
       cy.visit(`/project`)
       createProject('test-editor', { type: 'Example Project' }).then(
         (id: string) => {
@@ -86,16 +84,16 @@ describe('editor', () => {
             .should('contain.text', 'http://') // wait for the link to appear
             .then(el => {
               const linkSharingReadAndWrite = el.text()
-              resumeCollaboratorSession = login('collaborator@example.com')
+              login('collaborator@example.com')
               cy.visit(linkSharingReadAndWrite)
-              cy.get('button').contains('Join Project').click()
+              cy.get('button').contains('OK, join project').click()
               cy.log(
                 'navigate to project dashboard to avoid cross session requests from editor'
               )
               cy.visit('/project')
             })
 
-          resumeUserSession()
+          login('user@example.com')
           cy.visit(`/project/${projectId}`)
         }
       )
@@ -109,10 +107,10 @@ describe('editor', () => {
       cy.intercept('POST', '**/track_changes').as('enableTrackChanges')
       cy.findByText('Everyone')
         .parent()
-        .within(() => cy.get('.input-switch').click())
+        .within(() => cy.get('.form-check-input').click())
       cy.wait('@enableTrackChanges')
 
-      resumeCollaboratorSession()
+      login('collaborator@example.com')
       cy.visit(`/project/${projectId}`)
 
       cy.log('make changes in main file')
@@ -127,7 +125,7 @@ describe('editor', () => {
       cy.log('recompile to force flush')
       cy.findByText('Recompile').click()
 
-      resumeUserSession()
+      login('user@example.com')
       cy.visit(`/project/${projectId}`)
 
       cy.log('reject changes')
@@ -148,10 +146,10 @@ describe('editor', () => {
       cy.intercept('POST', '**/track_changes').as('enableTrackChanges')
       cy.findByText('Everyone')
         .parent()
-        .within(() => cy.get('.input-switch').click())
+        .within(() => cy.get('.form-check-input').click())
       cy.wait('@enableTrackChanges')
 
-      resumeCollaboratorSession()
+      login('collaborator@example.com')
       cy.visit(`/project/${projectId}`)
 
       cy.log('enable visual editor and make changes in main file')
@@ -168,7 +166,7 @@ describe('editor', () => {
       cy.log('recompile to force flush')
       cy.findByText('Recompile').click()
 
-      resumeUserSession()
+      login('user@example.com')
       cy.visit(`/project/${projectId}`)
 
       cy.log('reject changes')
@@ -189,6 +187,7 @@ describe('editor', () => {
       createProject(`project-${uuid()}`, { type: 'Example Project' })
       // wait until the main document is rendered
       cy.findByText(/Loading/).should('not.exist')
+      cy.findByText(/Your Paper/)
     })
 
     it('renders jpg', () => {
@@ -307,7 +306,7 @@ describe('editor', () => {
       cy.findByText('Layout').click()
       cy.findByText('Editor only').click()
 
-      cy.get('.pdf-viewer').should('not.exist')
+      cy.get('.pdf-viewer').should('not.be.visible')
       cy.get('.cm-editor').should('be.visible')
 
       cy.findByText('Switch to PDF').click()
@@ -317,7 +316,7 @@ describe('editor', () => {
 
       cy.findByText('Switch to editor').click()
 
-      cy.get('.pdf-viewer').should('not.exist')
+      cy.get('.pdf-viewer').should('not.be.visible')
       cy.get('.cm-editor').should('be.visible')
     })
 

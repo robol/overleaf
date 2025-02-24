@@ -14,7 +14,7 @@ const HistoryConversions = require('./HistoryConversions')
 const OError = require('@overleaf/o-error')
 
 /**
- * @typedef {import('./types').Ranges} Ranges
+ * @import { Ranges } from './types'
  */
 
 const ProjectHistoryRedisManager = {
@@ -119,7 +119,10 @@ const ProjectHistoryRedisManager = {
         ts: new Date(),
       },
       version: projectUpdate.version,
+      hash: projectUpdate.hash,
+      metadata: projectUpdate.metadata,
       projectHistoryId,
+      createdBlob: projectUpdate.createdBlob ?? false,
     }
     if (ranges) {
       projectUpdate.ranges = ranges
@@ -149,7 +152,13 @@ const ProjectHistoryRedisManager = {
     return await ProjectHistoryRedisManager.queueOps(projectId, jsonUpdate)
   },
 
-  async queueResyncProjectStructure(projectId, projectHistoryId, docs, files) {
+  async queueResyncProjectStructure(
+    projectId,
+    projectHistoryId,
+    docs,
+    files,
+    opts
+  ) {
     logger.debug({ projectId, docs, files }, 'queue project structure resync')
     const projectUpdate = {
       resyncProjectStructure: { docs, files },
@@ -157,6 +166,9 @@ const ProjectHistoryRedisManager = {
       meta: {
         ts: new Date(),
       },
+    }
+    if (opts.resyncProjectStructureOnly) {
+      projectUpdate.resyncProjectStructureOnly = opts.resyncProjectStructureOnly
     }
     const jsonUpdate = JSON.stringify(projectUpdate)
     return await ProjectHistoryRedisManager.queueOps(projectId, jsonUpdate)

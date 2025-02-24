@@ -39,4 +39,7 @@ export const TranslationMessage = (args: any) => {
 export default {
   title: 'Project List / System Messages',
   component: SystemMessages,
+  parameters: {
+    bootstrap5: true,
+  },
 }

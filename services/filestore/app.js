@@ -1,7 +1,7 @@
 // Metrics must be initialized before importing anything else
 require('@overleaf/metrics/initialize')
 
-const Events = require('events')
+const Events = require('node:events')
 const Metrics = require('@overleaf/metrics')
 
 const logger = require('@overleaf/logger')
@@ -22,10 +22,6 @@ Events.setMaxListeners(20)
 const app = express()
 
 app.use(RequestLogger.middleware)
-
-if (settings.sentry && settings.sentry.dsn) {
-  logger.initializeErrorReporting(settings.sentry.dsn)
-}
 
 Metrics.open_sockets.monitor(true)
 Metrics.memory.monitor(logger)
@@ -86,6 +82,12 @@ app.delete(
   fileController.deleteProject
 )
 
+app.get(
+  '/project/:project_id/size',
+  keyBuilder.userProjectKeyMiddleware,
+  fileController.directorySize
+)
+
 app.head(
   '/template/:template_id/v/:version/:format',
   keyBuilder.templateFileKeyMiddleware,
@@ -105,39 +107,6 @@ app.post(
   '/template/:template_id/v/:version/:format',
   keyBuilder.templateFileKeyMiddleware,
   fileController.insertFile
-)
-
-app.head(
-  '/project/:project_id/public/:public_file_id',
-  keyBuilder.publicFileKeyMiddleware,
-  fileController.getFileHead
-)
-app.get(
-  '/project/:project_id/public/:public_file_id',
-  keyBuilder.publicFileKeyMiddleware,
-  fileController.getFile
-)
-app.post(
-  '/project/:project_id/public/:public_file_id',
-  keyBuilder.publicFileKeyMiddleware,
-  fileController.insertFile
-)
-app.put(
-  '/project/:project_id/public/:public_file_id',
-  keyBuilder.publicFileKeyMiddleware,
-  bodyParser.json(),
-  fileController.copyFile
-)
-app.delete(
-  '/project/:project_id/public/:public_file_id',
-  keyBuilder.publicFileKeyMiddleware,
-  fileController.deleteFile
-)
-
-app.get(
-  '/project/:project_id/size',
-  keyBuilder.publicProjectKeyMiddleware,
-  fileController.directorySize
 )
 
 app.get(
@@ -193,7 +162,10 @@ function handleShutdownSignal(signal) {
   // stop accepting new connections, the callback is called when existing connections have finished
   server.close(() => {
     logger.info({ signal }, 'server closed')
-    process.exit()
+    // exit after a short delay so logs can be flushed
+    setTimeout(() => {
+      process.exit()
+    }, 100)
   })
   // close idle http keep-alive connections
   server.closeIdleConnections()
@@ -205,7 +177,7 @@ function handleShutdownSignal(signal) {
     setTimeout(() => {
       process.exit()
     }, 100)
-  }, settings.delayShutdownMs)
+  }, settings.gracefulShutdownDelayInMs)
 }
 
 process.on('SIGTERM', handleShutdownSignal)

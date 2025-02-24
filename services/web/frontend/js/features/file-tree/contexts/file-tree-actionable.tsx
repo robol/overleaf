@@ -22,7 +22,6 @@ import { isNameUniqueInFolder } from '../util/is-name-unique-in-folder'
 import { isBlockedFilename, isCleanFilename } from '../util/safe-path'
 
 import { useProjectContext } from '../../../shared/context/project-context'
-import { useEditorContext } from '../../../shared/context/editor-context'
 import { useFileTreeData } from '../../../shared/context/file-tree-data-context'
 import { useFileTreeSelectable } from './file-tree-selectable'
 
@@ -34,6 +33,8 @@ import {
 } from '../errors'
 import { Folder } from '../../../../../types/folder'
 import { useReferencesContext } from '@/features/ide-react/context/references-context'
+import { usePermissionsContext } from '@/features/ide-react/context/permissions-context'
+import { fileUrl } from '@/features/utils/fileUrl'
 
 type DroppedFile = File & {
   relativePath?: string
@@ -59,7 +60,7 @@ const FileTreeActionableContext = createContext<
       canRename: boolean
       canCreate: boolean
       parentFolderId: string
-      selectedFileName: string | null
+      selectedFileName: string | null | undefined
       isDuplicate: (parentFolderId: string, name: string) => boolean
       startRenaming: any
       finishRenaming: any
@@ -219,11 +220,12 @@ function fileTreeActionableReducer(state: State, action: Action) {
 
 export const FileTreeActionableProvider: FC = ({ children }) => {
   const { _id: projectId } = useProjectContext()
-  const { permissionsLevel } = useEditorContext()
+  const { fileTreeReadOnly } = useFileTreeData()
   const { indexAllReferences } = useReferencesContext()
+  const { write } = usePermissionsContext()
 
   const [state, dispatch] = useReducer(
-    permissionsLevel === 'readOnly'
+    fileTreeReadOnly
       ? fileTreeActionableReadOnlyReducer
       : fileTreeActionableReducer,
     defaultState
@@ -318,7 +320,7 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
 
   // moves entities. Tree is updated immediately and data are sync'd after.
   const finishMoving = useCallback(
-    (toFolderId, draggedEntityIds) => {
+    (toFolderId: string, draggedEntityIds: Set<string>) => {
       dispatch({ type: ACTION_TYPES.MOVING })
 
       // find entities and filter out no-ops and nested files
@@ -493,7 +495,7 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
       const selectedEntity = findInTree(fileTreeData, selectedEntityId)
 
       if (selectedEntity?.type === 'fileRef') {
-        return `/project/${projectId}/file/${selectedEntityId}`
+        return fileUrl(projectId, selectedEntityId, selectedEntity.entity.hash)
       }
 
       if (selectedEntity?.type === 'doc') {
@@ -502,32 +504,57 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
     }
   }, [fileTreeData, projectId, selectedEntityIds])
 
-  // TODO: wrap in useMemo
-  const value = {
-    canDelete: selectedEntityIds.size > 0 && !isRootFolderSelected,
-    canRename: selectedEntityIds.size === 1 && !isRootFolderSelected,
-    canCreate: selectedEntityIds.size < 2,
-    ...state,
-    parentFolderId,
-    selectedFileName,
-    isDuplicate,
-    startRenaming,
-    finishRenaming,
-    startDeleting,
-    finishDeleting,
-    finishMoving,
-    startCreatingFile,
-    startCreatingFolder,
-    finishCreatingFolder,
-    startCreatingDocOrFile,
-    startUploadingDocOrFile,
-    finishCreatingDoc,
-    finishCreatingLinkedFile,
-    cancel,
-    droppedFiles,
-    setDroppedFiles,
-    downloadPath,
-  }
+  const value = useMemo(
+    () => ({
+      canDelete: write && selectedEntityIds.size > 0 && !isRootFolderSelected,
+      canRename: write && selectedEntityIds.size === 1 && !isRootFolderSelected,
+      canCreate: write && selectedEntityIds.size < 2,
+      ...state,
+      parentFolderId,
+      selectedFileName,
+      isDuplicate,
+      startRenaming,
+      finishRenaming,
+      startDeleting,
+      finishDeleting,
+      finishMoving,
+      startCreatingFile,
+      startCreatingFolder,
+      finishCreatingFolder,
+      startCreatingDocOrFile,
+      startUploadingDocOrFile,
+      finishCreatingDoc,
+      finishCreatingLinkedFile,
+      cancel,
+      droppedFiles,
+      setDroppedFiles,
+      downloadPath,
+    }),
+    [
+      cancel,
+      downloadPath,
+      droppedFiles,
+      finishCreatingDoc,
+      finishCreatingFolder,
+      finishCreatingLinkedFile,
+      finishDeleting,
+      finishMoving,
+      finishRenaming,
+      isDuplicate,
+      isRootFolderSelected,
+      parentFolderId,
+      selectedEntityIds.size,
+      selectedFileName,
+      startCreatingDocOrFile,
+      startCreatingFile,
+      startCreatingFolder,
+      startDeleting,
+      startRenaming,
+      startUploadingDocOrFile,
+      state,
+      write,
+    ]
+  )
 
   return (
     <FileTreeActionableContext.Provider value={value}>
@@ -597,7 +624,7 @@ function validateCreate(
 
 function validateRename(
   fileTreeData: Folder,
-  found: { parentFolderId: string; path: string; type: string },
+  found: { parentFolderId: string; path: string[]; type: string },
   newName: string
 ) {
   if (!isCleanFilename(newName)) {

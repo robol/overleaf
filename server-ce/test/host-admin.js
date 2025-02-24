@@ -29,7 +29,7 @@ const IMAGES = {
   PRO: process.env.IMAGE_TAG_PRO.replace(/:.+/, ''),
 }
 
-let mongoIsInitialized = false
+let previousConfig = ''
 
 function readDockerComposeOverride() {
   try {
@@ -159,6 +159,7 @@ const allowedVars = Joi.object(
       'OVERLEAF_LDAP_LAST_NAME_ATT',
       'OVERLEAF_LDAP_UPDATE_USER_DETAILS_ON_LOGIN',
       // Old branding, used for upgrade tests
+      'SHARELATEX_SITE_URL',
       'SHARELATEX_MONGO_URL',
       'SHARELATEX_REDIS_HOST',
     ].map(name => [name, Joi.string()])
@@ -243,48 +244,19 @@ app.post(
   (req, res) => {
     const { cmd } = req.params
     const { args } = req.body
-    if (['stop', 'down'].includes(cmd)) {
-      mongoIsInitialized = false
-    }
     runDockerCompose(cmd, args, (error, stdout, stderr) => {
       res.json({ error, stdout, stderr })
     })
   }
 )
 
-function maybeMongoInit(mongoInit, callback) {
-  if (!mongoInit) return callback()
-  runDockerCompose(
-    'up',
-    ['--detach', '--wait', 'mongo'],
-    (error, stdout, stderr) => {
-      if (error) return callback(error, stdout, stderr)
-
-      runDockerCompose(
-        'exec',
-        [
-          'mongo',
-          'mongo',
-          '--eval',
-          'rs.initiate({ _id: "overleaf", members: [ { _id: 0, host: "mongo:27017" } ] })',
-        ],
-        (error, stdout, stderr) => {
-          if (!error) {
-            mongoIsInitialized = true
-          }
-          callback(error, stdout, stderr)
-        }
-      )
-    }
-  )
-}
-
 function maybeResetData(resetData, callback) {
   if (!resetData) return callback()
 
+  previousConfig = ''
   runDockerCompose(
-    'stop',
-    ['--timeout=0', 'sharelatex'],
+    'down',
+    ['--timeout=0', '--volumes', 'mongo', 'redis', 'sharelatex'],
     (error, stdout, stderr) => {
       if (error) return callback(error, stdout, stderr)
 
@@ -293,13 +265,7 @@ function maybeResetData(resetData, callback) {
       } catch (error) {
         return callback(error)
       }
-
-      mongoIsInitialized = false
-      runDockerCompose(
-        'down',
-        ['--timeout=0', '--volumes', 'mongo', 'redis'],
-        callback
-      )
+      callback()
     }
   )
 }
@@ -323,22 +289,27 @@ app.post(
     maybeResetData(resetData, (error, stdout, stderr) => {
       if (error) return res.json({ error, stdout, stderr })
 
+      const previousConfigServer = previousConfig
+      const newConfig = JSON.stringify(req.body)
+      if (previousConfig === newConfig) {
+        return res.json({ previousConfigServer })
+      }
+
       try {
         setVarsDockerCompose({ pro, version, vars, withDataDir })
       } catch (error) {
         return res.json({ error })
       }
 
-      maybeMongoInit(!mongoIsInitialized, (error, stdout, stderr) => {
-        if (error) return res.json({ error, stdout, stderr })
-        runDockerCompose(
-          'up',
-          ['--detach', '--wait', 'sharelatex'],
-          (error, stdout, stderr) => {
-            res.json({ error, stdout, stderr })
-          }
-        )
-      })
+      if (error) return res.json({ error, stdout, stderr })
+      runDockerCompose(
+        'up',
+        ['--detach', '--wait', 'sharelatex'],
+        (error, stdout, stderr) => {
+          previousConfig = newConfig
+          res.json({ error, stdout, stderr, previousConfigServer })
+        }
+      )
     })
   }
 )
@@ -357,12 +328,4 @@ app.use(handleValidationErrors())
 
 purgeDataDir()
 
-// Init on startup
-maybeMongoInit(true, err => {
-  if (err) {
-    console.error('mongo init failed', err)
-    process.exit(1)
-  }
-
-  app.listen(80)
-})
+app.listen(80)

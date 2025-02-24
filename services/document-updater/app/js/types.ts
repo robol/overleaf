@@ -13,6 +13,7 @@ export type Update = {
   meta?: {
     tc?: boolean
     user_id?: string
+    ts?: number
   }
   projectHistoryId?: string
 }
@@ -79,9 +80,11 @@ export type HistoryUpdate = {
   doc: string
   v?: number
   meta?: {
+    ts?: number
     pathname?: string
     doc_length?: number
     history_doc_length?: number
+    doc_hash?: string
     tc?: boolean
     user_id?: string
   }

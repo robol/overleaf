@@ -3,12 +3,9 @@ import { createPortal } from 'react-dom'
 import {
   useCodeMirrorStateContext,
   useCodeMirrorViewContext,
-} from './codemirror-editor'
-import { searchPanelOpen } from '@codemirror/search'
-import { useResizeObserver } from '../../../shared/hooks/use-resize-observer'
-import { ToolbarButton } from './toolbar/toolbar-button'
+} from './codemirror-context'
+import { useResizeObserver } from '@/shared/hooks/use-resize-observer'
 import { ToolbarItems } from './toolbar/toolbar-items'
-import * as commands from '../extensions/toolbar/commands'
 import { ToolbarOverflow } from './toolbar/overflow'
 import useDropdown from '../../../shared/hooks/use-dropdown'
 import { getPanel } from '@codemirror/view'
@@ -21,6 +18,8 @@ import { isVisual } from '../extensions/visual/visual'
 import { language } from '@codemirror/language'
 import { minimumListDepthForSelection } from '../utils/tree-operations/ancestors'
 import { debugConsole } from '@/utils/debugging'
+import { useTranslation } from 'react-i18next'
+import { ToggleSearchButton } from '@/features/source-editor/components/toolbar/toggle-search-button'
 
 export const CodeMirrorToolbar = () => {
   const view = useCodeMirrorViewContext()
@@ -34,11 +33,11 @@ export const CodeMirrorToolbar = () => {
 }
 
 const Toolbar = memo(function Toolbar() {
+  const { t } = useTranslation()
   const state = useCodeMirrorStateContext()
   const view = useCodeMirrorViewContext()
 
   const [overflowed, setOverflowed] = useState(false)
-  const [collapsed, setCollapsed] = useState(false)
 
   const overflowedItemsRef = useRef<Set<string>>(new Set())
 
@@ -129,18 +128,15 @@ const Toolbar = memo(function Toolbar() {
     }
   }, [buildOverflow, insideTable, resizeRef])
 
-  const toggleToolbar = useCallback(() => {
-    setCollapsed(value => !value)
-  }, [])
-
-  if (collapsed) {
-    return null
-  }
-
   const showActions = !state.readOnly && !insideTable
 
   return (
-    <div className="ol-cm-toolbar toolbar-editor" ref={elementRef}>
+    <div
+      role="toolbar"
+      aria-label={t('toolbar_editor')}
+      className="ol-cm-toolbar toolbar-editor"
+      ref={elementRef}
+    >
       <EditorSwitch />
       {showActions && (
         <ToolbarItems
@@ -174,26 +170,10 @@ const Toolbar = memo(function Toolbar() {
         className="ol-cm-toolbar-button-group ol-cm-toolbar-end"
         ref={handleButtons}
       >
-        <ToolbarButton
-          id="toolbar-toggle-search"
-          label="Toggle Search"
-          command={commands.toggleSearch}
-          active={searchPanelOpen(state)}
-          icon="search"
-        />
-
+        <ToggleSearchButton state={state} />
         <SwitchToPDFButton />
         <DetacherSynctexControl />
         <DetachCompileButtonWrapper />
-      </div>
-      <div className="ol-cm-toolbar-button-group hidden">
-        <ToolbarButton
-          id="toolbar-expand-less"
-          label="Hide Toolbar"
-          command={toggleToolbar}
-          icon="caret-up"
-          hidden // enable this once there's a way to show the toolbar again
-        />
       </div>
     </div>
   )

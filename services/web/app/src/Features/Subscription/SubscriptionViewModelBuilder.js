@@ -2,6 +2,10 @@
 const Settings = require('@overleaf/settings')
 const RecurlyWrapper = require('./RecurlyWrapper')
 const PlansLocator = require('./PlansLocator')
+const {
+  isStandaloneAiAddOnPlanCode,
+  MEMBERS_LIMIT_ADD_ON_CODE,
+} = require('./RecurlyEntities')
 const SubscriptionFormatters = require('./SubscriptionFormatters')
 const SubscriptionLocator = require('./SubscriptionLocator')
 const SubscriptionUpdater = require('./SubscriptionUpdater')
@@ -20,7 +24,9 @@ const {
 } = require('../Errors/Errors')
 const FeaturesHelper = require('./FeaturesHelper')
 
-/** @typedef {import("../../../../types/project/dashboard/subscription").Subscription} Subscription */
+/**
+ * @import { Subscription } from "../../../../types/project/dashboard/subscription"
+ */
 
 function buildHostedLink(type) {
   return `/user/subscription/recurly/${type}`
@@ -66,11 +72,7 @@ async function getRedirectToHostedPage(userId, pageType) {
   ].join('')
 }
 
-async function buildUsersSubscriptionViewModel(
-  user,
-  locale = 'en',
-  formatPrice = SubscriptionFormatters.formatPriceDefault
-) {
+async function buildUsersSubscriptionViewModel(user, locale = 'en') {
   let {
     personalSubscription,
     memberGroupSubscriptions,
@@ -241,6 +243,51 @@ async function buildUsersSubscriptionViewModel(
     delete personalSubscription.recurly
   }
 
+  function getPlanOnlyDisplayPrice(
+    totalPlanPriceInCents,
+    taxRate,
+    addOns = []
+  ) {
+    // The MEMBERS_LIMIT_ADD_ON_CODE is considered as part of the new plan model
+    const allAddOnsPriceInCentsExceptAdditionalLicensePrice = addOns.reduce(
+      (prev, curr) => {
+        return curr.add_on_code !== MEMBERS_LIMIT_ADD_ON_CODE
+          ? curr.quantity * curr.unit_amount_in_cents + prev
+          : prev
+      },
+      0
+    )
+    const allAddOnsTotalPriceInCentsExceptAdditionalLicensePrice =
+      allAddOnsPriceInCentsExceptAdditionalLicensePrice +
+      allAddOnsPriceInCentsExceptAdditionalLicensePrice * taxRate
+
+    return SubscriptionFormatters.formatPriceLocalized(
+      totalPlanPriceInCents -
+        allAddOnsTotalPriceInCentsExceptAdditionalLicensePrice,
+      recurlySubscription.currency,
+      locale
+    )
+  }
+
+  function getAddOnDisplayPricesWithoutAdditionalLicense(taxRate, addOns = []) {
+    return addOns.reduce((prev, curr) => {
+      if (curr.add_on_code !== MEMBERS_LIMIT_ADD_ON_CODE) {
+        const priceInCents = curr.quantity * curr.unit_amount_in_cents
+        const totalPriceInCents = priceInCents + priceInCents * taxRate
+
+        if (totalPriceInCents > 0) {
+          prev[curr.add_on_code] = SubscriptionFormatters.formatPriceLocalized(
+            totalPriceInCents,
+            recurlySubscription.currency,
+            locale
+          )
+        }
+      }
+
+      return prev
+    }, {})
+  }
+
   if (personalSubscription && recurlySubscription) {
     const tax = recurlySubscription.tax_in_cents || 0
     // Some plans allow adding more seats than the base plan provides.
@@ -248,38 +295,41 @@ async function buildUsersSubscriptionViewModel(
     // Note: tax_in_cents already includes the tax for any addon.
     let addOnPrice = 0
     let additionalLicenses = 0
-    if (
-      plan.membersLimitAddOn &&
-      Array.isArray(recurlySubscription.subscription_add_ons)
-    ) {
-      recurlySubscription.subscription_add_ons.forEach(addOn => {
-        if (addOn.add_on_code === plan.membersLimitAddOn) {
-          addOnPrice += addOn.quantity * addOn.unit_amount_in_cents
-          additionalLicenses += addOn.quantity
-        }
-      })
-    }
+    const addOns = recurlySubscription.subscription_add_ons || []
+    const taxRate = recurlySubscription.tax_rate
+      ? parseFloat(recurlySubscription.tax_rate._)
+      : 0
+    addOns.forEach(addOn => {
+      addOnPrice += addOn.quantity * addOn.unit_amount_in_cents
+      if (addOn.add_on_code === plan.membersLimitAddOn) {
+        additionalLicenses += addOn.quantity
+      }
+    })
     const totalLicenses = (plan.membersLimit || 0) + additionalLicenses
     personalSubscription.recurly = {
       tax,
-      taxRate: recurlySubscription.tax_rate
-        ? parseFloat(recurlySubscription.tax_rate._)
-        : 0,
+      taxRate,
       billingDetailsLink: buildHostedLink('billing-details'),
       accountManagementLink: buildHostedLink('account-management'),
       additionalLicenses,
+      addOns,
       totalLicenses,
-      nextPaymentDueAt: SubscriptionFormatters.formatDate(
+      nextPaymentDueAt: SubscriptionFormatters.formatDateTime(
+        recurlySubscription.current_period_ends_at
+      ),
+      nextPaymentDueDate: SubscriptionFormatters.formatDate(
         recurlySubscription.current_period_ends_at
       ),
       currency: recurlySubscription.currency,
       state: recurlySubscription.state,
-      trialEndsAtFormatted: SubscriptionFormatters.formatDate(
+      trialEndsAtFormatted: SubscriptionFormatters.formatDateTime(
         recurlySubscription.trial_ends_at
       ),
       trial_ends_at: recurlySubscription.trial_ends_at,
       activeCoupons: recurlyCoupons,
       account: recurlySubscription.account,
+      pausedAt: recurlySubscription.paused_at,
+      remainingPauseCycles: recurlySubscription.remaining_pause_cycles,
     }
     if (recurlySubscription.pending_subscription) {
       const pendingPlan = PlansLocator.findLocalPlanInSettings(
@@ -294,41 +344,50 @@ async function buildUsersSubscriptionViewModel(
       let pendingAddOnTax = 0
       let pendingAddOnPrice = 0
       if (recurlySubscription.pending_subscription.subscription_add_ons) {
-        if (
-          pendingPlan.membersLimitAddOn &&
-          Array.isArray(
-            recurlySubscription.pending_subscription.subscription_add_ons
-          )
-        ) {
-          recurlySubscription.pending_subscription.subscription_add_ons.forEach(
-            addOn => {
-              if (addOn.add_on_code === pendingPlan.membersLimitAddOn) {
-                pendingAddOnPrice += addOn.quantity * addOn.unit_amount_in_cents
-                pendingAdditionalLicenses += addOn.quantity
-              }
-            }
-          )
-        }
+        const pendingRecurlyAddons =
+          recurlySubscription.pending_subscription.subscription_add_ons
+        pendingRecurlyAddons.forEach(addOn => {
+          pendingAddOnPrice += addOn.quantity * addOn.unit_amount_in_cents
+          if (addOn.add_on_code === pendingPlan.membersLimitAddOn) {
+            pendingAdditionalLicenses += addOn.quantity
+          }
+        })
         // Need to calculate tax ourselves as we don't get tax amounts for pending subs
         pendingAddOnTax =
           personalSubscription.recurly.taxRate * pendingAddOnPrice
+        pendingPlan.addOns = pendingRecurlyAddons
       }
       const pendingSubscriptionTax =
         personalSubscription.recurly.taxRate *
         recurlySubscription.pending_subscription.unit_amount_in_cents
-      personalSubscription.recurly.displayPrice = formatPrice(
+      const totalPriceInCents =
         recurlySubscription.pending_subscription.unit_amount_in_cents +
-          pendingAddOnPrice +
-          pendingAddOnTax +
-          pendingSubscriptionTax,
-        recurlySubscription.currency,
-        locale
-      )
-      personalSubscription.recurly.currentPlanDisplayPrice = formatPrice(
-        recurlySubscription.unit_amount_in_cents + addOnPrice + tax,
-        recurlySubscription.currency,
-        locale
-      )
+        pendingAddOnPrice +
+        pendingAddOnTax +
+        pendingSubscriptionTax
+      personalSubscription.recurly.displayPrice =
+        SubscriptionFormatters.formatPriceLocalized(
+          totalPriceInCents,
+          recurlySubscription.currency,
+          locale
+        )
+      personalSubscription.recurly.currentPlanDisplayPrice =
+        SubscriptionFormatters.formatPriceLocalized(
+          recurlySubscription.unit_amount_in_cents + addOnPrice + tax,
+          recurlySubscription.currency,
+          locale
+        )
+      personalSubscription.recurly.planOnlyDisplayPrice =
+        getPlanOnlyDisplayPrice(
+          totalPriceInCents,
+          taxRate,
+          recurlySubscription.pending_subscription.subscription_add_ons
+        )
+      personalSubscription.recurly.addOnDisplayPricesWithoutAdditionalLicense =
+        getAddOnDisplayPricesWithoutAdditionalLicense(
+          taxRate,
+          recurlySubscription.pending_subscription.subscription_add_ons
+        )
       const pendingTotalLicenses =
         (pendingPlan.membersLimit || 0) + pendingAdditionalLicenses
       personalSubscription.recurly.pendingAdditionalLicenses =
@@ -336,11 +395,18 @@ async function buildUsersSubscriptionViewModel(
       personalSubscription.recurly.pendingTotalLicenses = pendingTotalLicenses
       personalSubscription.pendingPlan = pendingPlan
     } else {
-      personalSubscription.recurly.displayPrice = formatPrice(
-        recurlySubscription.unit_amount_in_cents + addOnPrice + tax,
-        recurlySubscription.currency,
-        locale
-      )
+      const totalPriceInCents =
+        recurlySubscription.unit_amount_in_cents + addOnPrice + tax
+      personalSubscription.recurly.displayPrice =
+        SubscriptionFormatters.formatPriceLocalized(
+          totalPriceInCents,
+          recurlySubscription.currency,
+          locale
+        )
+      personalSubscription.recurly.planOnlyDisplayPrice =
+        getPlanOnlyDisplayPrice(totalPriceInCents, taxRate, addOns)
+      personalSubscription.recurly.addOnDisplayPricesWithoutAdditionalLicense =
+        getAddOnDisplayPricesWithoutAdditionalLicense(taxRate, addOns)
     }
   }
 
@@ -423,16 +489,25 @@ async function getBestSubscription(user) {
     }
   }
   if (individualSubscription && !individualSubscription.groupPlan) {
-    const plan = PlansLocator.findLocalPlanInSettings(
-      individualSubscription.planCode
-    )
-    if (_isPlanEqualOrBetter(plan, bestSubscription.plan)) {
-      const remainingTrialDays = _getRemainingTrialDays(individualSubscription)
-      bestSubscription = {
-        type: 'individual',
-        subscription: individualSubscription,
-        plan,
-        remainingTrialDays,
+    if (
+      isStandaloneAiAddOnPlanCode(individualSubscription.planCode) &&
+      bestSubscription.type === 'free'
+    ) {
+      bestSubscription = { type: 'standalone-ai-add-on' }
+    } else {
+      const plan = PlansLocator.findLocalPlanInSettings(
+        individualSubscription.planCode
+      )
+      if (_isPlanEqualOrBetter(plan, bestSubscription.plan)) {
+        const remainingTrialDays = _getRemainingTrialDays(
+          individualSubscription
+        )
+        bestSubscription = {
+          type: 'individual',
+          subscription: individualSubscription,
+          plan,
+          remainingTrialDays,
+        }
       }
     }
   }

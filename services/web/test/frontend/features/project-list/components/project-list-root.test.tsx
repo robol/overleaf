@@ -4,7 +4,7 @@ import fetchMock from 'fetch-mock'
 import sinon from 'sinon'
 import ProjectListRoot from '../../../../../frontend/js/features/project-list/components/project-list-root'
 import { renderWithProjectListContext } from '../helpers/render-with-context'
-import * as eventTracking from '../../../../../frontend/js/infrastructure/event-tracking'
+import * as eventTracking from '@/infrastructure/event-tracking'
 import {
   projectsData,
   owner,
@@ -54,11 +54,20 @@ describe('<ProjectListRoot />', function () {
     // we need a blank user here since its used in checking if we should display certain ads
     window.metaAttributesCache.set('ol-user', {})
     window.metaAttributesCache.set('ol-user_id', userId)
+    window.metaAttributesCache.set('ol-footer', {
+      showThinFooter: false,
+      translatedLanguages: { en: 'English' },
+      subdomainLang: { en: { lngCode: 'en', url: 'overleaf.com' } },
+    })
+    window.metaAttributesCache.set('ol-navbar', {
+      items: [],
+    })
     assignStub = sinon.stub()
     this.locationStub = sinon.stub(useLocationModule, 'useLocation').returns({
       assign: assignStub,
       replace: sinon.stub(),
       reload: sinon.stub(),
+      setHash: sinon.stub(),
     })
   })
 
@@ -1129,7 +1138,7 @@ describe('<ProjectListRoot />', function () {
 
         const yourProjectFilter = screen.getAllByText('Your Projects')[0]
         fireEvent.click(yourProjectFilter)
-        screen.findByText(copiedProjectName)
+        await screen.findByText(copiedProjectName)
       })
     })
 

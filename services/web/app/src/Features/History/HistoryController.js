@@ -13,10 +13,85 @@ const ProjectDetailsHandler = require('../Project/ProjectDetailsHandler')
 const ProjectEntityUpdateHandler = require('../Project/ProjectEntityUpdateHandler')
 const RestoreManager = require('./RestoreManager')
 const { pipeline } = require('stream')
+const Stream = require('stream')
 const { prepareZipAttachment } = require('../../infrastructure/Response')
 const Features = require('../../infrastructure/Features')
+const { expressify } = require('@overleaf/promise-utils')
+
+// Number of seconds after which the browser should send a request to revalidate
+// blobs
+const REVALIDATE_BLOB_AFTER_SECONDS = 86400 // 1 day
+
+// Number of seconds during which the browser can serve a stale response while
+// revalidating
+const STALE_WHILE_REVALIDATE_SECONDS = 365 * 86400 // 1 year
+
+async function getBlob(req, res) {
+  await requestBlob('GET', req, res)
+}
+
+async function headBlob(req, res) {
+  await requestBlob('HEAD', req, res)
+}
+
+async function requestBlob(method, req, res) {
+  const { project_id: projectId, hash } = req.params
+
+  // Handle conditional GET request
+  if (req.get('If-None-Match') === hash) {
+    setBlobCacheHeaders(res, hash)
+    return res.status(304).end()
+  }
+
+  const range = req.get('Range')
+  let url, stream, source, contentLength
+  try {
+    ;({ url, stream, source, contentLength } =
+      await HistoryManager.promises.requestBlobWithFallback(
+        projectId,
+        hash,
+        req.query.fallback,
+        method,
+        range
+      ))
+  } catch (err) {
+    if (err instanceof Errors.NotFoundError) return res.status(404).end()
+    throw err
+  }
+  res.appendHeader('X-Served-By', source)
+
+  if (contentLength) res.setHeader('Content-Length', contentLength) // set on HEAD
+  res.setHeader('Content-Type', 'application/octet-stream')
+  setBlobCacheHeaders(res, hash)
+
+  try {
+    await Stream.promises.pipeline(stream, res)
+  } catch (err) {
+    // If the downstream request is cancelled, we get an
+    // ERR_STREAM_PREMATURE_CLOSE, ignore these "errors".
+    if (err?.code === 'ERR_STREAM_PREMATURE_CLOSE') return
+
+    logger.warn({ err, url, method, range }, 'streaming blob error')
+    throw err
+  }
+}
+
+function setBlobCacheHeaders(res, etag) {
+  // Blobs are immutable, so they can in principle be cached indefinitely. Here,
+  // we ask the browser to cache them for some time, but then check back
+  // regularly in case they changed (even though they shouldn't). This is a
+  // precaution in case a bug makes us send bad data through that endpoint.
+  res.set(
+    'Cache-Control',
+    `private, max-age=${REVALIDATE_BLOB_AFTER_SECONDS}, stale-while-revalidate=${STALE_WHILE_REVALIDATE_SECONDS}`
+  )
+  res.set('ETag', etag)
+}
 
 module.exports = HistoryController = {
+  getBlob: expressify(getBlob),
+  headBlob: expressify(headBlob),
+
   proxyToHistoryApi(req, res, next) {
     const userId = SessionManager.getLoggedInUserId(req.session)
     const url = settings.apis.project_history.url + req.url
@@ -73,6 +148,9 @@ module.exports = HistoryController = {
     if (historyRangesMigration) {
       opts.historyRangesMigration = historyRangesMigration
     }
+    if (req.body.resyncProjectStructureOnly) {
+      opts.resyncProjectStructureOnly = req.body.resyncProjectStructureOnly
+    }
     ProjectEntityUpdateHandler.resyncProjectHistory(
       projectId,
       opts,
@@ -118,6 +196,7 @@ module.exports = HistoryController = {
       projectId,
       version,
       pathname,
+      {},
       function (err, entity) {
         if (err) {
           return next(err)
@@ -128,6 +207,18 @@ module.exports = HistoryController = {
         })
       }
     )
+  },
+
+  revertProject(req, res, next) {
+    const { project_id: projectId } = req.params
+    const { version } = req.body
+    const userId = SessionManager.getLoggedInUserId(req.session)
+    RestoreManager.revertProject(userId, projectId, version, function (err) {
+      if (err) {
+        return next(err)
+      }
+      res.sendStatus(200)
+    })
   },
 
   getLabels(req, res, next) {
@@ -159,8 +250,8 @@ module.exports = HistoryController = {
     HistoryController._makeRequest(
       {
         method: 'POST',
-        url: `${settings.apis.project_history.url}/project/${projectId}/user/${userId}/labels`,
-        json: { comment, version },
+        url: `${settings.apis.project_history.url}/project/${projectId}/labels`,
+        json: { comment, version, user_id: userId },
       },
       function (err, label) {
         if (err) {
@@ -178,7 +269,9 @@ module.exports = HistoryController = {
 
   _enrichLabel(label, callback) {
     if (!label.user_id) {
-      return callback(null, label)
+      const newLabel = Object.assign({}, label)
+      newLabel.user_display_name = HistoryController._displayNameForUser(null)
+      return callback(null, newLabel)
     }
     UserGetter.getUser(
       label.user_id,
@@ -200,7 +293,8 @@ module.exports = HistoryController = {
     }
     const uniqueUsers = new Set(labels.map(label => label.user_id))
 
-    // For backwards compatibility expect missing user_id fields
+    // For backwards compatibility, and for anonymously created labels in SP
+    // expect missing user_id fields
     uniqueUsers.delete(undefined)
 
     if (!uniqueUsers.size) {
@@ -218,7 +312,6 @@ module.exports = HistoryController = {
 
         labels.forEach(label => {
           const user = users.get(label.user_id)
-          if (!user) return
           label.user_display_name = HistoryController._displayNameForUser(user)
         })
         callback(null, labels)

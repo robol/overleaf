@@ -20,8 +20,6 @@ import { saveProjectSettings } from '@/features/editor-left-menu/utils/api'
 import { PermissionsLevel } from '@/features/ide-react/types/permissions'
 import { useModalsContext } from '@/features/ide-react/context/modals-context'
 
-type writefullAdButtons = '' | 'try-it' | 'log-in'
-
 export const EditorContext = createContext<
   | {
       cobranding?: {
@@ -36,7 +34,6 @@ export const EditorContext = createContext<
         submitBtnHtml?: string
       }
       hasPremiumCompile?: boolean
-      loading?: boolean
       renameProject: (newName: string) => void
       setPermissionsLevel: (permissionsLevel: PermissionsLevel) => void
       showSymbolPalette?: boolean
@@ -44,25 +41,30 @@ export const EditorContext = createContext<
       insertSymbol?: (symbol: string) => void
       isProjectOwner: boolean
       isRestrictedTokenMember?: boolean
-      permissionsLevel: 'readOnly' | 'readAndWrite' | 'owner'
+      isPendingEditor: boolean
+      permissionsLevel: PermissionsLevel
       deactivateTutorial: (tutorial: string) => void
       inactiveTutorials: string[]
       currentPopup: string | null
       setCurrentPopup: Dispatch<SetStateAction<string | null>>
-      writefullAdClicked: writefullAdButtons
-      setWritefullAdClicked: Dispatch<SetStateAction<writefullAdButtons>>
       setOutOfSync: (value: boolean) => void
+      assistantUpgraded: boolean
+      setAssistantUpgraded: (value: boolean) => void
+      hasPremiumSuggestion: boolean
+      setHasPremiumSuggestion: (value: boolean) => void
+      setPremiumSuggestionResetDate: (date: Date) => void
+      premiumSuggestionResetDate: Date
     }
   | undefined
 >(undefined)
 
 export const EditorProvider: FC = ({ children }) => {
-  const ide = useIdeContext()
-  const { id: userId } = useUserContext()
+  const { socket } = useIdeContext()
+  const { id: userId, featureUsage } = useUserContext()
   const { role } = useDetachContext()
   const { showGenericMessageModal } = useModalsContext()
 
-  const { owner, features, _id: projectId } = useProjectContext()
+  const { owner, features, _id: projectId, members } = useProjectContext()
 
   const cobranding = useMemo(() => {
     const brandVariation = getMeta('ol-brandVariation')
@@ -81,7 +83,6 @@ export const EditorProvider: FC = ({ children }) => {
     )
   }, [])
 
-  const [loading] = useScopeValue('state.loading')
   const [projectName, setProjectName] = useScopeValue('project.name')
   const [permissionsLevel, setPermissionsLevel] =
     useScopeValue('permissionsLevel')
@@ -93,10 +94,28 @@ export const EditorProvider: FC = ({ children }) => {
     () => getMeta('ol-inactiveTutorials') || []
   )
 
-  const [writefullAdClicked, setWritefullAdClicked] =
-    useState<writefullAdButtons>('')
-
   const [currentPopup, setCurrentPopup] = useState<string | null>(null)
+  const [assistantUpgraded, setAssistantUpgraded] = useState(false)
+  const [hasPremiumSuggestion, setHasPremiumSuggestion] = useState<boolean>(
+    () => {
+      return Boolean(
+        featureUsage?.aiErrorAssistant &&
+          featureUsage?.aiErrorAssistant.remainingUsage > 0
+      )
+    }
+  )
+  const [premiumSuggestionResetDate, setPremiumSuggestionResetDate] =
+    useState<Date>(() => {
+      return featureUsage?.aiErrorAssistant?.resetDate
+        ? new Date(featureUsage.aiErrorAssistant.resetDate)
+        : new Date()
+    })
+
+  const isPendingEditor = useMemo(
+    () =>
+      members?.some(member => member._id === userId && member.pendingEditor),
+    [members, userId]
+  )
 
   const deactivateTutorial = useCallback(
     tutorialKey => {
@@ -106,12 +125,11 @@ export const EditorProvider: FC = ({ children }) => {
   )
 
   useEffect(() => {
-    if (ide?.socket) {
-      ide.socket.on('projectNameUpdated', setProjectName)
-      return () =>
-        ide.socket.removeListener('projectNameUpdated', setProjectName)
+    if (socket) {
+      socket.on('projectNameUpdated', setProjectName)
+      return () => socket.removeListener('projectNameUpdated', setProjectName)
     }
-  }, [ide?.socket, setProjectName])
+  }, [socket, setProjectName])
 
   const renameProject = useCallback(
     (newName: string) => {
@@ -168,12 +186,12 @@ export const EditorProvider: FC = ({ children }) => {
     () => ({
       cobranding,
       hasPremiumCompile: features?.compileGroup === 'priority',
-      loading,
       renameProject,
       permissionsLevel: outOfSync ? 'readOnly' : permissionsLevel,
       setPermissionsLevel,
       isProjectOwner: owner?._id === userId,
       isRestrictedTokenMember: getMeta('ol-isRestrictedTokenMember'),
+      isPendingEditor,
       showSymbolPalette,
       toggleSymbolPalette,
       insertSymbol,
@@ -181,19 +199,23 @@ export const EditorProvider: FC = ({ children }) => {
       deactivateTutorial,
       currentPopup,
       setCurrentPopup,
-      writefullAdClicked,
-      setWritefullAdClicked,
       setOutOfSync,
+      hasPremiumSuggestion,
+      setHasPremiumSuggestion,
+      premiumSuggestionResetDate,
+      setPremiumSuggestionResetDate,
+      assistantUpgraded,
+      setAssistantUpgraded,
     }),
     [
       cobranding,
       features?.compileGroup,
       owner,
       userId,
-      loading,
       renameProject,
       permissionsLevel,
       setPermissionsLevel,
+      isPendingEditor,
       showSymbolPalette,
       toggleSymbolPalette,
       insertSymbol,
@@ -201,10 +223,14 @@ export const EditorProvider: FC = ({ children }) => {
       deactivateTutorial,
       currentPopup,
       setCurrentPopup,
-      writefullAdClicked,
-      setWritefullAdClicked,
       outOfSync,
       setOutOfSync,
+      hasPremiumSuggestion,
+      setHasPremiumSuggestion,
+      premiumSuggestionResetDate,
+      setPremiumSuggestionResetDate,
+      assistantUpgraded,
+      setAssistantUpgraded,
     ]
   )
 

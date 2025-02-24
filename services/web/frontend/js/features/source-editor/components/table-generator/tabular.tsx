@@ -14,21 +14,21 @@ import {
 } from './contexts/editing-context'
 import { EditorView } from '@codemirror/view'
 import { ErrorBoundary } from 'react-error-boundary'
-import { Alert, Button } from 'react-bootstrap'
 import { EditorSelection } from '@codemirror/state'
 import {
-  CodeMirrorViewContextProvider,
+  CodeMirrorViewContext,
   useCodeMirrorViewContext,
-} from '../codemirror-editor'
+} from '../codemirror-context'
 import { TableProvider } from './contexts/table-context'
 import { TabularProvider, useTabularContext } from './contexts/tabular-context'
-import Icon from '../../../../shared/components/icon'
 import { BorderTheme } from './toolbar/commands'
 import { TableGeneratorHelpModal } from './help-modal'
 import { SplitTestProvider } from '../../../../shared/context/split-test-context'
 import { useTranslation } from 'react-i18next'
 import { ColumnWidthModal } from './toolbar/column-width-modal/modal'
 import { WidthSelection } from './toolbar/column-width-modal/column-width'
+import Notification from '@/shared/components/notification'
+import OLButton from '@/features/ui/components/ol/ol-button'
 
 export type ColumnDefinition = {
   alignment: 'left' | 'center' | 'right' | 'paragraph'
@@ -198,35 +198,40 @@ export const TableRenderingError: FC<{
   codePosition?: number
 }> = ({ view, codePosition }) => {
   const { t } = useTranslation()
+
   return (
-    <Alert className="table-generator-error">
-      <span className="table-generator-error-icon">
-        <Icon type="exclamation-circle" />
-      </span>
-      <div className="table-generator-error-message">
-        <p className="table-generator-error-message-header">
-          {t('sorry_your_table_cant_be_displayed_at_the_moment')}
-        </p>
-        <p>
-          {t(
-            'this_could_be_because_we_cant_support_some_elements_of_the_table'
-          )}
-        </p>
-      </div>
-      {codePosition !== undefined && (
-        <Button
-          bsStyle={null}
-          className="btn-secondary table-generator-error-show-code-button"
-          onClick={() =>
-            view.dispatch({
-              selection: EditorSelection.cursor(codePosition),
-            })
-          }
-        >
-          {t('view_code')}
-        </Button>
-      )}
-    </Alert>
+    <Notification
+      type="info"
+      content={
+        <>
+          <p>
+            <strong>
+              {t('sorry_your_table_cant_be_displayed_at_the_moment')}
+            </strong>
+          </p>
+          <p>
+            {t(
+              'this_could_be_because_we_cant_support_some_elements_of_the_table'
+            )}
+          </p>
+        </>
+      }
+      action={
+        codePosition !== undefined ? (
+          <OLButton
+            variant="secondary"
+            onClick={() =>
+              view.dispatch({
+                selection: EditorSelection.cursor(codePosition),
+              })
+            }
+            size="sm"
+          >
+            {t('view_code')}
+          </OLButton>
+        ) : undefined
+      }
+    />
   )
 }
 
@@ -244,7 +249,7 @@ export const Tabular: FC<{
       )}
     >
       <SplitTestProvider>
-        <CodeMirrorViewContextProvider value={view}>
+        <CodeMirrorViewContext.Provider value={view}>
           <TabularProvider>
             <TableProvider
               tabularNode={tabularNode}
@@ -262,7 +267,7 @@ export const Tabular: FC<{
             </TableProvider>
             <TableGeneratorHelpModal />
           </TabularProvider>
-        </CodeMirrorViewContextProvider>
+        </CodeMirrorViewContext.Provider>
       </SplitTestProvider>
     </ErrorBoundary>
   )

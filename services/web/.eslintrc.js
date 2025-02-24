@@ -33,16 +33,22 @@ module.exports = {
     '@typescript-eslint/no-this-alias': 'off',
     '@typescript-eslint/no-non-null-assertion': 'off',
     '@typescript-eslint/ban-ts-comment': 'off',
+
+    'no-use-before-define': 'off',
+    '@typescript-eslint/no-use-before-define': [
+      'error',
+      { functions: false, classes: false, variables: false },
+    ],
   },
   overrides: [
     // NOTE: changing paths may require updating them in the Makefile too.
     {
       // Node
       files: [
-        '**/app/src/**/*.js',
-        'app.js',
+        '**/app/src/**/*.{js,mjs}',
+        'app.{js,mjs}',
         'i18next-scanner.config.js',
-        'scripts/**/*.js',
+        'scripts/**/*.{js,mjs}',
         'webpack.config*.js',
       ],
       env: {
@@ -79,11 +85,44 @@ module.exports = {
         // we don't enforce this at the top-level - just in tests to manage `this` scope
         // based on mocha's context mechanism
         'mocha/prefer-arrow-callback': 'error',
+
+        '@typescript-eslint/no-unused-expressions': 'off',
+      },
+    },
+    {
+      // ES specific rules
+      files: [
+        '**/app/src/**/*.mjs',
+        'modules/*/index.mjs',
+        'app.mjs',
+        'scripts/**/*.mjs',
+        'migrations/**/*.mjs',
+      ],
+      excludedFiles: [
+        // migration template file
+        'migrations/lib/template.mjs',
+      ],
+      parserOptions: {
+        sourceType: 'module',
+      },
+      plugins: ['unicorn'],
+      rules: {
+        'import/no-unresolved': 'error',
+        'import/extensions': [
+          'error',
+          'ignorePackages',
+          {
+            js: 'always',
+            mjs: 'always',
+          },
+        ],
+        'unicorn/prefer-module': 'error',
+        'unicorn/prefer-node-protocol': 'error',
       },
     },
     {
       // Backend specific rules
-      files: ['**/app/src/**/*.js', 'app.js'],
+      files: ['**/app/src/**/*.{js,mjs}', 'app.{js,mjs}'],
       parserOptions: {
         tsconfigRootDir: __dirname,
         project: './tsconfig.backend.json',
@@ -127,13 +166,23 @@ module.exports = {
             message:
               "Don't map ObjectId directly. Use `id => new ObjectId(id)` instead",
           },
+          // Catch incorrect usage of `await db.collection.find()`
+          {
+            selector:
+              "AwaitExpression > CallExpression > MemberExpression[property.name='find'][object.object.name='db']",
+            message:
+              'Mongo find returns a cursor not a promise, use `for await (const result of cursor)` or `.toArray()` instead.',
+          },
         ],
-        '@typescript-eslint/no-floating-promises': 'error',
+        '@typescript-eslint/no-floating-promises': [
+          'error',
+          { checkThenables: true },
+        ],
       },
     },
     {
-      // Backend tests and scripts specific rules
-      files: ['**/test/**/*.*', '**/scripts/*.*'],
+      // Backend scripts specific rules
+      files: ['**/scripts/**/*.js'],
       rules: {
         'no-restricted-syntax': [
           'error',
@@ -170,6 +219,24 @@ module.exports = {
       extends: ['plugin:cypress/recommended'],
     },
     {
+      // Frontend test specific rules
+      files: ['**/frontend/**/*.test.{js,jsx,ts,tsx}'],
+      plugins: ['testing-library'],
+      extends: ['plugin:testing-library/react'],
+      rules: {
+        'testing-library/no-await-sync-events': 'off',
+        'testing-library/no-await-sync-queries': 'off',
+        'testing-library/no-container': 'off',
+        'testing-library/no-node-access': 'off',
+        'testing-library/no-render-in-lifecycle': 'off',
+        'testing-library/no-wait-for-multiple-assertions': 'off',
+        'testing-library/no-wait-for-side-effects': 'off',
+        'testing-library/prefer-query-by-disappearance': 'off',
+        'testing-library/prefer-screen-queries': 'off',
+        'testing-library/render-result-naming-convention': 'off',
+      },
+    },
+    {
       // Frontend specific rules
       files: [
         '**/frontend/js/**/*.{js,jsx,ts,tsx}',
@@ -195,7 +262,6 @@ module.exports = {
       globals: {
         __webpack_public_path__: true,
         $: true,
-        angular: true,
         ga: true,
       },
       rules: {
@@ -268,38 +334,6 @@ module.exports = {
         ],
         'no-restricted-syntax': [
           'error',
-          // Begin: Make sure angular can withstand minification
-          {
-            selector:
-              "CallExpression[callee.object.name='App'][callee.property.name=/run|directive|config|controller/] > :function[params.length > 0]",
-            message:
-              "Wrap the function in an array with the parameter names, to withstand minifcation. E.g. App.controller('MyController', ['param1', function(param1) {}]",
-          },
-          {
-            selector:
-              "CallExpression[callee.object.name='App'][callee.property.name=/run|directive|config|controller/] > ArrayExpression > ArrowFunctionExpression",
-            message:
-              'Use standard function syntax instead of arrow function syntax in angular components. E.g. function(param1) {}',
-          },
-          {
-            selector:
-              "CallExpression[callee.object.name='App'][callee.property.name=/run|directive|config|controller/] > ArrowFunctionExpression",
-            message:
-              'Use standard function syntax instead of arrow function syntax in angular components. E.g. function(param1) {}',
-          },
-          {
-            selector:
-              "CallExpression[callee.object.name='App'][callee.property.name=/run|directive|config|controller/] > ArrayExpression > :not(:function, Identifier):last-child",
-            message:
-              "Last element of the array must be a function. E.g ['param1', function(param1) {}]",
-          },
-          {
-            selector:
-              "CallExpression[callee.object.name='App'][callee.property.name=/run|directive|config|controller/] > ArrayExpression[elements.length=0]",
-            message:
-              "Array must not be empty. Add parameters and a function. E.g ['param1', function(param1) {}]",
-          },
-          // End: Make sure angular can withstand minification
           // prohibit direct calls to methods of window.localStorage
           {
             selector:
@@ -386,6 +420,13 @@ module.exports = {
         'no-undef': 'off',
       },
     },
+    // JavaScript-specific rules
+    {
+      files: ['**/*.js'],
+      rules: {
+        '@typescript-eslint/no-require-imports': 'off',
+      },
+    },
     {
       files: ['scripts/ukamf/*.js'],
       rules: {
@@ -416,8 +457,8 @@ module.exports = {
         // Backend: Use @overleaf/logger
         //          Docs: https://manual.dev-overleaf.com/development/code/logging/#structured-logging
         '**/app/**/*.{js,cjs,mjs}',
-        'app.js',
-        'modules/*/*.js',
+        'app.{js,mjs}',
+        'modules/*/*.{js,mjs}',
         // Frontend: Prefer debugConsole over bare console
         //           Docs: https://manual.dev-overleaf.com/development/code/logging/#frontend
         '**/frontend/**/*.{js,jsx,ts,tsx}',

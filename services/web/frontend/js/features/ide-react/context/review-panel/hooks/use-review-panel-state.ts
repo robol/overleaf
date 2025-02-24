@@ -25,7 +25,6 @@ import {
 } from '@/features/ide-react/context/editor-manager-context'
 import { debugConsole } from '@/utils/debugging'
 import { deleteJSON, getJSON, postJSON } from '@/infrastructure/fetch-json'
-import ColorManager from '@/ide/colors/ColorManager'
 import RangesTracker from '@overleaf/ranges-tracker'
 import type * as ReviewPanel from '@/features/source-editor/context/review-panel/types/review-panel-state'
 import {
@@ -64,9 +63,9 @@ import {
   EditOperation,
 } from '../../../../../../../types/change'
 import { RangesTrackerWithResolvedThreadIds } from '@/features/ide-react/editor/document-container'
-import useViewerPermissions from '@/shared/hooks/use-viewer-permissions'
 import getMeta from '@/utils/meta'
 import { useEditorContext } from '@/shared/context/editor-context'
+import { getHueForUserId } from '@/shared/utils/colors'
 
 const dispatchReviewPanelEvent = (type: string, payload?: any) => {
   window.dispatchEvent(
@@ -87,7 +86,7 @@ const formatUser = (user: any): any => {
       email: null,
       name: 'Anonymous',
       isSelf: false,
-      hue: ColorManager.ANONYMOUS_HUE,
+      hue: getHueForUserId(),
       avatar_text: 'A',
     }
   }
@@ -109,7 +108,7 @@ const formatUser = (user: any): any => {
     email: user.email,
     name,
     isSelf,
-    hue: ColorManager.getHueForUserId(id),
+    hue: getHueForUserId(id),
     avatar_text: [user.first_name, user.last_name]
       .filter(n => n != null)
       .map(n => n[0])
@@ -139,7 +138,7 @@ function useReviewPanelState(): ReviewPanel.ReviewPanelState {
   } = project
   const { isRestrictedTokenMember } = useEditorContext()
   const {
-    openDocId,
+    openDocWithId,
     currentDocument,
     currentDocumentId,
     wantTrackChanges,
@@ -152,7 +151,6 @@ function useReviewPanelState(): ReviewPanel.ReviewPanelState {
   const permissions = usePermissionsContext()
   const { showGenericMessageModal } = useModalsContext()
   const addCommentEmitter = useScopeEventEmitter('comment:start_adding')
-  const hasViewerPermissions = useViewerPermissions()
 
   const layoutToLeft = useLayoutToLeft('.ide-react-editor-panel')
   const [subView, setSubView] =
@@ -282,7 +280,7 @@ function useReviewPanelState(): ReviewPanel.ReviewPanelState {
           const tempUsers = {} as ReviewPanel.Value<'users'>
           // Always include ourself, since if we submit an op, we might need to display info
           // about it locally before it has been flushed through the server
-          if (user) {
+          if (user?.id) {
             tempUsers[user.id] = formatUser(user)
           }
 
@@ -420,7 +418,7 @@ function useReviewPanelState(): ReviewPanel.ReviewPanelState {
         }
 
         if (!users[change.metadata.user_id]) {
-          if (!(isRestrictedTokenMember || hasViewerPermissions)) {
+          if (!isRestrictedTokenMember) {
             refreshChangeUsers(change.metadata.user_id)
           }
         }
@@ -428,10 +426,7 @@ function useReviewPanelState(): ReviewPanel.ReviewPanelState {
 
       let localResolvedThreadIds = resolvedThreadIds
 
-      if (
-        !(isRestrictedTokenMember || hasViewerPermissions) &&
-        rangesTracker.comments.length > 0
-      ) {
+      if (!isRestrictedTokenMember && rangesTracker.comments.length > 0) {
         const threadsLoadResult = await ensureThreadsAreLoaded()
         if (threadsLoadResult?.resolvedThreadIds) {
           localResolvedThreadIds = threadsLoadResult.resolvedThreadIds
@@ -494,18 +489,19 @@ function useReviewPanelState(): ReviewPanel.ReviewPanelState {
       ensureThreadsAreLoaded,
       loadingThreads,
       setLoadingThreads,
-      hasViewerPermissions,
       isRestrictedTokenMember,
     ]
   )
 
   const regenerateTrackChangesId = useCallback(
     (doc: typeof currentDocument) => {
-      const currentChangeTracker = getChangeTracker(doc.doc_id as DocId)
-      const oldId = currentChangeTracker.getIdSeed()
-      const newId = RangesTracker.generateIdSeed()
-      currentChangeTracker.setIdSeed(newId)
-      doc.setTrackChangesIdSeeds({ pending: newId, inflight: oldId })
+      if (doc) {
+        const currentChangeTracker = getChangeTracker(doc.doc_id as DocId)
+        const oldId = currentChangeTracker.getIdSeed()
+        const newId = RangesTracker.generateIdSeed()
+        currentChangeTracker.setIdSeed(newId)
+        doc.setTrackChangesIdSeeds({ pending: newId, inflight: oldId })
+      }
     },
     [getChangeTracker]
   )
@@ -724,7 +720,7 @@ function useReviewPanelState(): ReviewPanel.ReviewPanelState {
   )
 
   const applyTrackChangesStateToClient = useCallback(
-    (state: boolean | ReviewPanel.Value<'trackChangesState'>) => {
+    (state: boolean | Record<UserId | '__guests__', boolean>) => {
       if (typeof state === 'boolean') {
         setEveryoneTCState(state)
         setGuestsTCState(state)
@@ -851,9 +847,9 @@ function useReviewPanelState(): ReviewPanel.ReviewPanelState {
 
   const gotoEntry = useCallback(
     (docId: DocId, entryOffset: number) => {
-      openDocId(docId, { gotoOffset: entryOffset })
+      openDocWithId(docId, { gotoOffset: entryOffset })
     },
-    [openDocId]
+    [openDocWithId]
   )
 
   const view = reviewPanelOpen ? subView : 'mini'
@@ -878,7 +874,9 @@ function useReviewPanelState(): ReviewPanel.ReviewPanelState {
         return { ...prevState, [threadId]: thread }
       })
       setResolvedThreadIds(prevState => ({ ...prevState, [threadId]: true }))
-      dispatchReviewPanelEvent('comment:resolve_threads', [threadId])
+      setTimeout(() => {
+        dispatchReviewPanelEvent('comment:resolve_threads', [threadId])
+      })
     },
     [getThread]
   )
@@ -922,7 +920,9 @@ function useReviewPanelState(): ReviewPanel.ReviewPanelState {
       setResolvedThreadIds(({ [threadId]: _, ...resolvedThreadIds }) => {
         return resolvedThreadIds
       })
-      dispatchReviewPanelEvent('comment:unresolve_thread', threadId)
+      setTimeout(() => {
+        dispatchReviewPanelEvent('comment:unresolve_thread', threadId)
+      })
     },
     [getThread]
   )
@@ -1189,8 +1189,8 @@ function useReviewPanelState(): ReviewPanel.ReviewPanelState {
   // listen for events from the CodeMirror 6 track changes extension
   useEffect(() => {
     const toggleTrackChangesFromKbdShortcut = () => {
-      if (trackChangesVisible && trackChanges) {
-        const userId: UserId = user.id
+      const userId = user.id
+      if (trackChangesVisible && trackChanges && userId) {
         const state = trackChangesState[userId]
         if (state) {
           toggleTrackChangesForUser(!state.value, userId)
@@ -1497,17 +1497,6 @@ function useReviewPanelState(): ReviewPanel.ReviewPanelState {
   }, [reviewPanelOpen])
 
   const canRefreshRanges = useRef(false)
-  useEffect(() => {
-    if (subView === 'overview' && canRefreshRanges.current) {
-      canRefreshRanges.current = false
-
-      setIsOverviewLoading(true)
-      refreshRanges().finally(() => {
-        setIsOverviewLoading(false)
-      })
-    }
-  }, [subView, refreshRanges])
-
   const prevSubView = useRef(subView)
   const initializedPrevSubView = useRef(false)
   useEffect(() => {
@@ -1520,6 +1509,17 @@ function useReviewPanelState(): ReviewPanel.ReviewPanelState {
     // Allow refreshing ranges once for each `subView` change
     canRefreshRanges.current = true
   }, [subView])
+
+  useEffect(() => {
+    if (subView === 'overview' && canRefreshRanges.current) {
+      canRefreshRanges.current = false
+
+      setIsOverviewLoading(true)
+      refreshRanges().finally(() => {
+        setIsOverviewLoading(false)
+      })
+    }
+  }, [subView, refreshRanges])
 
   useEffect(() => {
     if (subView === 'cur_file' && prevSubView.current === 'overview') {
