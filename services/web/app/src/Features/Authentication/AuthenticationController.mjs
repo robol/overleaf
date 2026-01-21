@@ -11,6 +11,7 @@ import basicAuth from 'basic-auth'
 import tsscmp from 'tsscmp'
 import UserHandler from '../User/UserHandler.mjs'
 import UserSessionsManager from '../User/UserSessionsManager.mjs'
+import { User } from '../../models/User.mjs'
 import Analytics from '../Analytics/AnalyticsManager.mjs'
 import passport from 'passport'
 import NotificationsBuilder from '../Notifications/NotificationsBuilder.mjs'
@@ -25,6 +26,7 @@ import Modules from '../../infrastructure/Modules.mjs'
 import { expressify, promisify } from '@overleaf/promise-utils'
 import { handleAuthenticateErrors } from './AuthenticationErrors.mjs'
 import EmailHelper from '../Helpers/EmailHelper.mjs'
+import { randomBytes } from 'node:crypto'
 
 const { hasAdminAccess } = AdminAuthorizationHelper
 
@@ -213,44 +215,43 @@ const AuthenticationController = {
     )
   },
 
-  doOAuth2PassportLogin(accessToken, refreshToken, profile, cb) {
+  async doOAuth2PassportLogin(accessToken, refreshToken, profile, cb) {
     console.log(cb)
-    var req = request.get({
-      url: process.env.OAUTH2_USERINFO_URL,
-      headers: {
-        'Authorization': 'Bearer ' + accessToken
+    try {
+      const url = process.env.OAUTH2_USERINFO_URL;
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': 'Bearer ' + accessToken
+        }
+      });
+      const openid_profile = await response.json();
+
+      const email = openid_profile.email;
+      let cn_pieces = openid_profile.name.split(' ');
+      let first_name = cn_pieces[0];
+      let last_name = cn_pieces.slice(1).join(' ');
+
+      const user = await User.findOne({ email: email });
+      if (user) {
+        cb(null, user);
+      } else {
+        console.log("Creating user");
+        const newUser = await User.create({
+          email: email,
+          first_name: first_name,
+          last_name: last_name,
+          password: randomBytes(32).toString("hex"),
+          'emails.0.confirmedAt': Date.now(),
+          'emails.0.email': email,
+          'emails.0.reversedHostname': email.split('@')[1].split("").reverse().join("")
+        });
+        cb(null, newUser);
       }
-    }, function (err, response, data) {
-        console.log(data)
-        const openid_profile = JSON.parse(data);
-
-        const email = openid_profile.email;
-        let cn_pieces = openid_profile.name.split(' ');
-        let first_name = cn_pieces[0];
-        let last_name = cn_pieces.slice(1).join(' ');
-
-        User.findOne({ email: email }, function(err, user) {
-          if (err || user) {
-            console.log(err)
-            cb(err, user)
-          }
-          else {
-            console.log("Creating user")
-
-            User.create({
-              email: email,
-              first_name: first_name,
-              last_name: last_name,
-              password: require("crypto").randomBytes(32).toString("hex"),
-              'emails.0.confirmedAt': Date.now(),
-              'emails.0.email': email,
-              'emails.0.reversedHostname': email.split('@')[1].split("").reverse().join("")
-            }, function (err, user) {
-              cb(err, user)
-            })
-          }
-      })
-    })
+    } catch (err) {
+      console.log(err);
+      cb(err);
+    }
   },
 
  

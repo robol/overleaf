@@ -8,7 +8,7 @@ import SessionManager from '../Authentication/SessionManager.mjs'
 import NewsletterManager from '../Newsletter/NewsletterManager.mjs'
 import SubscriptionLocator from '../Subscription/SubscriptionLocator.mjs'
 import _ from 'lodash'
-const passport = require('passport')
+import passport from 'passport'
 import { expressify } from '@overleaf/promise-utils'
 import Features from '../../infrastructure/Features.mjs'
 import Modules from '../../infrastructure/Modules.mjs'

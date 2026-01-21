@@ -42,19 +42,7 @@ import { handleValidationError } from '@overleaf/validation-tools'
 const { hasAdminAccess } = AdminAuthorizationHelper
 const sessionsRedisClient = UserSessionsRedis.client()
 
-const SessionAutostartMiddleware = require('./SessionAutostartMiddleware')
-const AnalyticsManager = require('../Features/Analytics/AnalyticsManager')
-const session = require('express-session')
-const CookieMetrics = require('./CookieMetrics')
-const CustomSessionStore = require('./CustomSessionStore')
-const bodyParser = require('./BodyParserWrapper')
-const methodOverride = require('method-override')
-const cookieParser = require('cookie-parser')
-const bearerTokenMiddleware = require('express-bearer-token')
-
-const passport = require('passport')
-const LocalStrategy = require('passport-local').Strategy
-const OAuth2Strategy = require('passport-oauth2');
+import { Strategy as OAuth2Strategy } from 'passport-oauth2'
 
 const oneDayInMilliseconds = 86400000
 

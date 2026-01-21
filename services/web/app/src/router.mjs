@@ -68,7 +68,7 @@ import AsyncLocalStorage from './infrastructure/AsyncLocalStorage.mjs'
 
 const { renderUnsupportedBrowserPage, unsupportedBrowserMiddleware } =
   UnsupportedBrowserMiddleware
-const passport = require('passport')
+import passport from 'passport'
 
 const rateLimiters = {
   addEmail: new RateLimiter('add-email', {
