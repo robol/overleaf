@@ -3,6 +3,7 @@ import PdfLogEntryRawContent from './pdf-log-entry-raw-content'
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
 import { LogEntry } from '../util/types'
 import { ElementType } from 'react'
+import classNames from 'classnames'
 
 const pdfLogEntryComponents = importOverleafModules(
   'pdfLogEntryComponents'
@@ -17,17 +18,21 @@ export default function PdfLogEntryContent({
   extraInfoURL,
   index,
   logEntry,
+  alwaysExpandRawContent = false,
+  className,
 }: {
   rawContent?: string
   formattedContent?: React.ReactNode
   extraInfoURL?: string | null
   index?: number
   logEntry?: LogEntry
+  alwaysExpandRawContent?: boolean
+  className?: string
 }) {
   const { t } = useTranslation()
 
   return (
-    <div className="log-entry-content">
+    <div className={classNames('log-entry-content', className)}>
       {formattedContent && (
         <div className="log-entry-formatted-content">{formattedContent}</div>
       )}
@@ -48,7 +53,11 @@ export default function PdfLogEntryContent({
         )}
 
       {rawContent && (
-        <PdfLogEntryRawContent rawContent={rawContent} collapsedSize={150} />
+        <PdfLogEntryRawContent
+          rawContent={rawContent}
+          collapsedSize={150}
+          alwaysExpanded={alwaysExpandRawContent}
+        />
       )}
     </div>
   )

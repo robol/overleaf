@@ -37,6 +37,17 @@ describe('ProjectSnapshot', function () {
       contents: "We're done here",
       hash: 'dddddddddddddddddddddddddddddddddddddddd',
     },
+    'bibliography.bib': {
+      contents:
+        '@book{example2020,\n  title={An example book},\n  author={Doe, John},\n  year={2020},\n  publisher={Publisher}\n}\n'.repeat(
+          60_000
+        ), // 6.5MB
+      hash: 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+    },
+    'empty.png': {
+      contents: '',
+      hash: 'ffffffffffffffffffffffffffffffffffffffff',
+    },
   }
 
   const chunk = {
@@ -66,6 +77,20 @@ describe('ProjectSnapshot', function () {
               file: {
                 hash: 'cccccccccccccccccccccccccccccccccccccccc',
                 byteLength: 97080,
+              },
+            },
+            {
+              pathname: 'bibliography.bib',
+              file: {
+                hash: files['bibliography.bib'].hash,
+                byteLength: files['bibliography.bib'].contents.length,
+              },
+            },
+            {
+              pathname: 'empty.png',
+              file: {
+                hash: files['empty.png'].hash,
+                byteLength: files['empty.png'].contents.length,
               },
             },
           ],
@@ -119,18 +144,36 @@ describe('ProjectSnapshot', function () {
   }
 
   function mockChanges() {
-    fetchMock.getOnce(`/project/${projectId}/changes?since=1`, changes, {
-      name: 'changes-1',
-    })
-    fetchMock.get(`/project/${projectId}/changes?since=2`, [], {
+    fetchMock.getOnce(
+      `/project/${projectId}/changes?since=1&paginated=true`,
+      changes,
+      {
+        name: 'changes-1',
+      }
+    )
+    fetchMock.get(`/project/${projectId}/changes?since=2&paginated=true`, [], {
       name: 'changes-2',
     })
   }
 
+  // fetch-mock doesn't seem to expose the header to the response function,
+  // so we just use a constant here
+  const MOCKED_MAX_SIZE = 100
+
   function mockBlobs(paths = Object.keys(files) as (keyof typeof files)[]) {
     for (const path of paths) {
       const file = files[path]
-      fetchMock.get(`/project/${projectId}/blob/${file.hash}`, file.contents)
+      fetchMock
+        .get({
+          url: `/project/${projectId}/blob/${file.hash}`,
+          missingHeaders: ['Range'],
+          response: file.contents,
+        })
+        .get({
+          url: `/project/${projectId}/blob/${file.hash}`,
+          headers: { Range: `bytes=0-${MOCKED_MAX_SIZE - 1}` },
+          response: file.contents.slice(0, MOCKED_MAX_SIZE),
+        })
     }
   }
 
@@ -139,7 +182,7 @@ describe('ProjectSnapshot', function () {
     mockLatestChunk()
     mockBlobs(['main.tex', 'hello.txt'])
     await snapshot.refresh()
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   }
 
   describe('after initialization', function () {
@@ -176,7 +219,7 @@ describe('ProjectSnapshot', function () {
     mockChanges()
     mockBlobs(['goodbye.txt'])
     await snapshot.refresh()
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   }
 
   describe('after refresh', function () {
@@ -184,7 +227,7 @@ describe('ProjectSnapshot', function () {
     beforeEach(refreshSnapshot)
 
     afterEach(function () {
-      fetchMock.reset()
+      fetchMock.removeRoutes().clearHistory()
     })
 
     describe('getDocPaths()', function () {
@@ -210,11 +253,61 @@ describe('ProjectSnapshot', function () {
         )
       })
     })
+
+    describe('getBinaryFilePathsWithHash()', function () {
+      it('returns the binary files', function () {
+        const binaries = snapshot.getBinaryFilePathsWithHash()
+        expect(binaries).to.deep.equal([
+          {
+            path: 'frog.jpg',
+            hash: 'cccccccccccccccccccccccccccccccccccccccc',
+            size: 97080,
+          },
+          {
+            path: 'bibliography.bib',
+            hash: files['bibliography.bib'].hash,
+            size: files['bibliography.bib'].contents.length,
+          },
+          {
+            path: 'empty.png',
+            hash: 'ffffffffffffffffffffffffffffffffffffffff',
+            size: 0,
+          },
+        ])
+      })
+    })
+
+    describe('getBinaryFileContents', function () {
+      beforeEach(function () {
+        mockBlobs(['bibliography.bib', 'empty.png'])
+      })
+
+      it('can fetch whole file', async function () {
+        const blob = await snapshot.getBinaryFileContents('bibliography.bib')
+        expect(blob).to.equal(files['bibliography.bib'].contents)
+      })
+
+      it('can fetch part of file', async function () {
+        const blob = await snapshot.getBinaryFileContents('bibliography.bib', {
+          maxSize: MOCKED_MAX_SIZE,
+        })
+        expect(blob).to.equal(
+          files['bibliography.bib'].contents.slice(0, MOCKED_MAX_SIZE)
+        )
+      })
+
+      it('can fetch empty file with maxSize', async function () {
+        const blob = await snapshot.getBinaryFileContents('empty.png', {
+          maxSize: 200,
+        })
+        expect(blob).to.equal(files['empty.png'].contents)
+      })
+    })
   })
 
   describe('concurrency', function () {
     afterEach(function () {
-      fetchMock.reset()
+      fetchMock.removeRoutes().clearHistory()
     })
 
     specify('two concurrent inits', async function () {
@@ -226,9 +319,9 @@ describe('ProjectSnapshot', function () {
       await Promise.all([snapshot.refresh(), snapshot.refresh()])
 
       // The first request initializes, the second request loads changes
-      expect(fetchMock.calls('flush')).to.have.length(2)
-      expect(fetchMock.calls('latest-chunk')).to.have.length(1)
-      expect(fetchMock.calls('changes-1')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('flush')).to.have.length(2)
+      expect(fetchMock.callHistory.calls('latest-chunk')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('changes-1')).to.have.length(1)
     })
 
     specify('three concurrent inits', async function () {
@@ -245,9 +338,9 @@ describe('ProjectSnapshot', function () {
 
       // The first request initializes, the second and third are combined and
       // load changes
-      expect(fetchMock.calls('flush')).to.have.length(2)
-      expect(fetchMock.calls('latest-chunk')).to.have.length(1)
-      expect(fetchMock.calls('changes-1')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('flush')).to.have.length(2)
+      expect(fetchMock.callHistory.calls('latest-chunk')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('changes-1')).to.have.length(1)
     })
 
     specify('two concurrent inits - first fails', async function () {
@@ -262,9 +355,9 @@ describe('ProjectSnapshot', function () {
 
       // The first init fails, but the second succeeds
       expect(results.filter(r => r.status === 'fulfilled')).to.have.length(1)
-      expect(fetchMock.calls('flush')).to.have.length(2)
-      expect(fetchMock.calls('latest-chunk')).to.have.length(1)
-      expect(fetchMock.calls('changes-1')).to.have.length(0)
+      expect(fetchMock.callHistory.calls('flush')).to.have.length(2)
+      expect(fetchMock.callHistory.calls('latest-chunk')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('changes-1')).to.have.length(0)
     })
 
     specify('three concurrent inits - second fails', async function () {
@@ -285,10 +378,10 @@ describe('ProjectSnapshot', function () {
       // The first init succeeds, the two queued requests fail, the last request
       // succeeds
       expect(results.filter(r => r.status === 'fulfilled')).to.have.length(1)
-      expect(fetchMock.calls('flush')).to.have.length(3)
-      expect(fetchMock.calls('latest-chunk')).to.have.length(1)
-      expect(fetchMock.calls('changes-1')).to.have.length(1)
-      expect(fetchMock.calls('changes-2')).to.have.length(0)
+      expect(fetchMock.callHistory.calls('flush')).to.have.length(3)
+      expect(fetchMock.callHistory.calls('latest-chunk')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('changes-1')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('changes-2')).to.have.length(0)
     })
 
     specify('two concurrent load changes', async function () {
@@ -304,10 +397,10 @@ describe('ProjectSnapshot', function () {
       await Promise.all([snapshot.refresh(), snapshot.refresh()])
 
       // One init, two load changes
-      expect(fetchMock.calls('flush')).to.have.length(3)
-      expect(fetchMock.calls('latest-chunk')).to.have.length(1)
-      expect(fetchMock.calls('changes-1')).to.have.length(1)
-      expect(fetchMock.calls('changes-2')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('flush')).to.have.length(3)
+      expect(fetchMock.callHistory.calls('latest-chunk')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('changes-1')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('changes-2')).to.have.length(1)
     })
 
     specify('three concurrent load changes', async function () {
@@ -327,10 +420,10 @@ describe('ProjectSnapshot', function () {
       ])
 
       // One init, two load changes (the two last are queued and combined)
-      expect(fetchMock.calls('flush')).to.have.length(3)
-      expect(fetchMock.calls('latest-chunk')).to.have.length(1)
-      expect(fetchMock.calls('changes-1')).to.have.length(1)
-      expect(fetchMock.calls('changes-2')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('flush')).to.have.length(3)
+      expect(fetchMock.callHistory.calls('latest-chunk')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('changes-1')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('changes-2')).to.have.length(1)
     })
 
     specify('two concurrent load changes - first fails', async function () {
@@ -350,10 +443,10 @@ describe('ProjectSnapshot', function () {
 
       // One init, one load changes fails, the second succeeds
       expect(results.filter(r => r.status === 'fulfilled')).to.have.length(1)
-      expect(fetchMock.calls('flush')).to.have.length(3)
-      expect(fetchMock.calls('latest-chunk')).to.have.length(1)
-      expect(fetchMock.calls('changes-1')).to.have.length(1)
-      expect(fetchMock.calls('changes-2')).to.have.length(0)
+      expect(fetchMock.callHistory.calls('flush')).to.have.length(3)
+      expect(fetchMock.callHistory.calls('latest-chunk')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('changes-1')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('changes-2')).to.have.length(0)
     })
 
     specify('three concurrent load changes - second fails', async function () {
@@ -378,10 +471,10 @@ describe('ProjectSnapshot', function () {
       // One init, one load changes succeeds, the second and third are combined
       // and fail, the last request succeeds
       expect(results.filter(r => r.status === 'fulfilled')).to.have.length(1)
-      expect(fetchMock.calls('flush')).to.have.length(4)
-      expect(fetchMock.calls('latest-chunk')).to.have.length(1)
-      expect(fetchMock.calls('changes-1')).to.have.length(1)
-      expect(fetchMock.calls('changes-2')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('flush')).to.have.length(4)
+      expect(fetchMock.callHistory.calls('latest-chunk')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('changes-1')).to.have.length(1)
+      expect(fetchMock.callHistory.calls('changes-2')).to.have.length(1)
     })
   })
 })

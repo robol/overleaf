@@ -58,6 +58,7 @@ describe('persistChanges', function () {
       numberOfChangesPersisted: 1,
       originalEndVersion: 0,
       currentChunk,
+      resyncNeeded: false,
     })
 
     const chunk = await chunkStore.loadLatest(projectId)
@@ -66,7 +67,7 @@ describe('persistChanges', function () {
     expect(chunk.getChanges().length).to.equal(1)
   })
 
-  it('persists changes in two chunks', async function () {
+  it('persists changes in three chunks', async function () {
     const limitsToPersistImmediately = {
       maxChunkChanges: 1,
       minChangeTimestamp: farFuture,
@@ -83,7 +84,12 @@ describe('persistChanges', function () {
       new Date(),
       []
     )
-    const changes = [firstChange, secondChange]
+    const thirdChange = new Change(
+      [new AddFileOperation('c.tex', File.fromString(''))],
+      new Date(),
+      []
+    )
+    const changes = [firstChange, secondChange, thirdChange]
 
     await chunkStore.initializeProject(projectId)
     const result = await persistChanges(
@@ -98,19 +104,24 @@ describe('persistChanges', function () {
         'a.tex': {
           content: '',
         },
+        'b.tex': {
+          content: '',
+        },
       },
+      timestamp: thirdChange.getTimestamp().toISOString(),
     })
-    const history = new History(snapshot, [secondChange])
-    const currentChunk = new Chunk(history, 1)
+    const history = new History(snapshot, [thirdChange])
+    const currentChunk = new Chunk(history, 2)
     expect(result).to.deep.equal({
-      numberOfChangesPersisted: 2,
+      numberOfChangesPersisted: 3,
       originalEndVersion: 0,
       currentChunk,
+      resyncNeeded: false,
     })
 
     const chunk = await chunkStore.loadLatest(projectId)
-    expect(chunk.getStartVersion()).to.equal(1)
-    expect(chunk.getEndVersion()).to.equal(2)
+    expect(chunk.getStartVersion()).to.equal(2)
+    expect(chunk.getEndVersion()).to.equal(3)
     expect(chunk.getChanges().length).to.equal(1)
   })
 
@@ -147,6 +158,7 @@ describe('persistChanges', function () {
       numberOfChangesPersisted: 2,
       originalEndVersion: 0,
       currentChunk,
+      resyncNeeded: false,
     })
 
     const chunk = await chunkStore.loadLatest(projectId)
@@ -213,7 +225,7 @@ describe('persistChanges', function () {
       expect(result.numberOfChangesPersisted).to.equal(1)
     })
 
-    it('acccepts a change with an invalid hash (only logs for now)', async function () {
+    it('turns on the resyncNeeded flag if content hash validation fails', async function () {
       const limitsToPersistImmediately = {
         minChangeTimestamp: farFuture,
         maxChangeTimestamp: farFuture,
@@ -241,7 +253,7 @@ describe('persistChanges', function () {
         limitsToPersistImmediately,
         0
       )
-      expect(result.numberOfChangesPersisted).to.equal(1)
+      expect(result.resyncNeeded).to.be.true
     })
   })
 })

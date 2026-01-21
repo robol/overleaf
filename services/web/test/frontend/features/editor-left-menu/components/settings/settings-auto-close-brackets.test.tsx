@@ -7,7 +7,7 @@ import { EditorProviders } from '../../../../helpers/editor-providers'
 
 describe('<SettingsAutoCloseBrackets />', function () {
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
   it('shows correct menu', async function () {
@@ -19,7 +19,7 @@ describe('<SettingsAutoCloseBrackets />', function () {
       </EditorProviders>
     )
 
-    const select = screen.getByLabelText('Auto-close Brackets')
+    const select = screen.getByLabelText('Auto-close brackets')
 
     const optionOn = within(select).getByText('On')
     expect(optionOn.getAttribute('value')).to.equal('true')

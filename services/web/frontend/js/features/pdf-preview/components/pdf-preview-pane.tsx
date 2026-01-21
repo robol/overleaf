@@ -8,22 +8,38 @@ import { useDetachCompileContext as useCompileContext } from '../../../shared/co
 import { PdfPreviewMessages } from './pdf-preview-messages'
 import CompileTimeWarningUpgradePrompt from './compile-time-warning-upgrade-prompt'
 import { PdfPreviewProvider } from './pdf-preview-provider'
-import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
-import { useFeatureFlag } from '@/shared/context/split-test-context'
 import PdfPreviewHybridToolbarNew from '@/features/ide-redesign/components/pdf-preview/pdf-preview-hybrid-toolbar'
-import PdfErrorState from '@/features/ide-redesign/components/pdf-preview/pdf-error-state'
-
-const pdfPreviewPromotions = importOverleafModules('pdfPreviewPromotions') as {
-  import: { default: ElementType }
-  path: string
-}[]
+import { useIsNewEditorEnabled } from '@/features/ide-redesign/utils/new-editor-utils'
+import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
+import PdfCodeCheckFailedBanner from '@/features/ide-redesign/components/pdf-preview/pdf-code-check-failed-banner'
+import getMeta from '@/utils/meta'
+import NewPdfLogsViewer from '@/features/ide-redesign/components/pdf-preview/pdf-logs-viewer'
 
 function PdfPreviewPane() {
-  const { pdfUrl, hasShortCompileTimeout } = useCompileContext()
+  const {
+    pdfUrl,
+    pdfViewer,
+    darkModePdf: darkModeSetting,
+    activeOverallTheme,
+  } = useCompileContext()
+  const { compileTimeout } = getMeta('ol-compileSettings')
+  const usesNewEditor = useIsNewEditorEnabled()
+  const darkModePdf =
+    usesNewEditor &&
+    pdfViewer === 'pdfjs' &&
+    activeOverallTheme === 'dark' &&
+    darkModeSetting
+
   const classes = classNames('pdf', 'full-size', {
     'pdf-empty': !pdfUrl,
+    'pdf-dark-mode': darkModePdf,
   })
-  const newEditor = useFeatureFlag('editor-redesign')
+  const newEditor = useIsNewEditorEnabled()
+
+  const pdfPromotions = importOverleafModules('pdfPreviewPromotions') as {
+    import: { default: ElementType }
+    path: string
+  }[]
 
   return (
     <div className={classes}>
@@ -33,20 +49,19 @@ function PdfPreviewPane() {
         ) : (
           <PdfHybridPreviewToolbar />
         )}
+        {newEditor && <PdfCodeCheckFailedBanner />}
         <PdfPreviewMessages>
-          {pdfPreviewPromotions.map(
-            ({ import: { default: Component }, path }) => (
-              <Component key={path} />
-            )
-          )}
-          {hasShortCompileTimeout && <CompileTimeWarningUpgradePrompt />}
+          {compileTimeout < 60 && <CompileTimeWarningUpgradePrompt />}
         </PdfPreviewMessages>
         <Suspense fallback={<FullSizeLoadingSpinner delay={500} />}>
-          <div className="pdf-viewer">
+          <div className="pdf-viewer" data-testid="pdf-viewer">
             <PdfViewer />
           </div>
         </Suspense>
-        {newEditor ? <PdfErrorState /> : <PdfLogsViewer />}
+        {newEditor ? <NewPdfLogsViewer /> : <PdfLogsViewer />}
+        {pdfPromotions.map(({ import: { default: Component }, path }) => (
+          <Component key={path} />
+        ))}
       </PdfPreviewProvider>
     </div>
   )

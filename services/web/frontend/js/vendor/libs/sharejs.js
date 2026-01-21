@@ -680,6 +680,7 @@ export const { Doc } = (() => {
   // Text document API for text
 
   text.api = {
+    otType: "sharejs-text-ot",
     provides: { text: true },
 
     // The number of characters in the string
@@ -696,9 +697,6 @@ export const { Doc } = (() => {
       var op = { p: pos, i: text };
       if (fromUndo) {
         op.u = true;
-        // TODO: This flag is temporary. It is only necessary while we change
-        // the behaviour of tracked delete rejections in RangesTracker
-        op.fixedRemoveChange = true;
       }
       op = [op];
 
@@ -962,7 +960,7 @@ export const { Doc } = (() => {
         // Its important that these event handlers are called with oldSnapshot.
         // The reason is that the OT type APIs might need to access the snapshots to
         // determine information about the received op.
-        this.emit('change', docOp, oldSnapshot, msg);
+        this.emit('change', docOp, oldSnapshot, msg, isRemote);
         if (isRemote) {
           return this.emit('remoteop', docOp, oldSnapshot, msg);
         }
@@ -1098,14 +1096,7 @@ export const { Doc } = (() => {
           if (!msg.error) {
             if (msg.op === undefined && msg.v !== undefined) {
               if (msg.v < this.version) {
-                postJSON('/error/client', {
-                  body: {
-                    error: {
-                      message: 'out-of-order-ack-ignored'
-                    },
-                    meta: { msg, version: this.version }
-                  }
-                })
+                debugConsole.warn('Received an ack for an op with an outdated version.')
                 return
               }
             } else {
@@ -1325,7 +1316,8 @@ export const { Doc } = (() => {
           var needToRecomputeHash = !this.__lastSubmitTimestamp || (age > RECOMPUTE_HASH_INTERVAL) || (age < 0)
           if (needToRecomputeHash || debugging) {
             // send git hash of current snapshot
-            var sha1 = generateSHA1Hash("blob " + this.snapshot.length + "\x00" + this.snapshot)
+            const str = this.getText()
+            var sha1 = generateSHA1Hash("blob " + str.length + "\x00" + str)
             this.__lastSubmitTimestamp = now;
           }
         }

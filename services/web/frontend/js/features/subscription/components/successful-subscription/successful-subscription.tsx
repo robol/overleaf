@@ -3,16 +3,17 @@ import { PriceExceptions } from '../shared/price-exceptions'
 import PremiumFeaturesLink from '../dashboard/premium-features-link'
 import getMeta from '../../../../utils/meta'
 import { useSubscriptionDashboardContext } from '../../context/subscription-dashboard-context'
-import OLRow from '@/features/ui/components/ol/ol-row'
-import OLCol from '@/features/ui/components/ol/ol-col'
-import OLPageContentCard from '@/features/ui/components/ol/ol-page-content-card'
-import OLNotification from '@/features/ui/components/ol/ol-notification'
+import OLRow from '@/shared/components/ol/ol-row'
+import OLCol from '@/shared/components/ol/ol-col'
+import OLPageContentCard from '@/shared/components/ol/ol-page-content-card'
+import OLNotification from '@/shared/components/ol/ol-notification'
 import {
   AI_ADD_ON_CODE,
   ADD_ON_NAME,
   isStandaloneAiPlanCode,
 } from '../../data/add-on-codes'
-import { RecurlySubscription } from '../../../../../../types/subscription/dashboard/subscription'
+import { PaidSubscription } from '../../../../../../types/subscription/dashboard/subscription'
+import { useBroadcastUser } from '@/shared/hooks/user-channel/use-broadcast-user'
 
 function SuccessfulSubscription() {
   const { t } = useTranslation()
@@ -20,8 +21,9 @@ function SuccessfulSubscription() {
     useSubscriptionDashboardContext()
   const postCheckoutRedirect = getMeta('ol-postCheckoutRedirect')
   const { appName, adminEmail } = getMeta('ol-ExposedSettings')
+  useBroadcastUser()
 
-  if (!subscription || !('recurly' in subscription)) return null
+  if (!subscription || !('payment' in subscription)) return null
 
   const onAiStandalonePlan = isStandaloneAiPlanCode(subscription.planCode)
 
@@ -37,15 +39,15 @@ function SuccessfulSubscription() {
               type="success"
               content={
                 <>
-                  {subscription.recurly.trial_ends_at && (
+                  {subscription.payment.trialEndsAt && (
                     <>
                       <p>
                         <Trans
                           i18nKey="next_payment_of_x_collectected_on_y"
                           values={{
-                            paymentAmmount: subscription.recurly.displayPrice,
+                            paymentAmmount: subscription.payment.displayPrice,
                             collectionDate:
-                              subscription.recurly.nextPaymentDueAt,
+                              subscription.payment.nextPaymentDueAt,
                           }}
                           shouldUnescape
                           tOptions={{ interpolation: { escapeValue: true } }}
@@ -78,7 +80,7 @@ function SuccessfulSubscription() {
               subscription={subscription}
               onAiStandalonePlan={onAiStandalonePlan}
             />
-            {!onAiStandalonePlan && <PremiumFeaturesLink />}
+            <PremiumFeaturesLink subscription={subscription} />
             <p>
               {t('need_anything_contact_us_at')}&nbsp;
               <a href={`mailto:${adminEmail}`} rel="noopener noreferrer">
@@ -112,7 +114,7 @@ function SuccessfulSubscription() {
                 href={postCheckoutRedirect || '/project'}
                 rel="noopener noreferrer"
               >
-                &lt; {t('back_to_your_projects')}
+                {t('back_to_your_projects')}
               </a>
             </p>
           </OLPageContentCard>
@@ -126,7 +128,7 @@ function ThankYouSection({
   subscription,
   onAiStandalonePlan,
 }: {
-  subscription: RecurlySubscription
+  subscription: PaidSubscription
   onAiStandalonePlan: boolean
 }) {
   const { t } = useTranslation()

@@ -1,25 +1,25 @@
-const request = require('request')
-const _ = require('lodash')
-const OError = require('@overleaf/o-error')
-const logger = require('@overleaf/logger')
-const settings = require('@overleaf/settings')
-const metrics = require('@overleaf/metrics')
+import request from 'request'
+import _ from 'lodash'
+import OError from '@overleaf/o-error'
+import logger from '@overleaf/logger'
+import settings from '@overleaf/settings'
+import metrics from '@overleaf/metrics'
+import RedisWrapper from '@overleaf/redis-wrapper'
+import Errors from './Errors.js'
+
 const {
   ClientRequestedMissingOpsError,
   DocumentUpdaterRequestFailedError,
   NullBytesInOpError,
   UpdateTooLargeError,
-} = require('./Errors')
-
-const rclient = require('@overleaf/redis-wrapper').createClient(
-  settings.redis.documentupdater
-)
+} = Errors
+const rclient = RedisWrapper.createClient(settings.redis.documentupdater)
 const Keys = settings.redis.documentupdater.key_schema
 
 const DocumentUpdaterManager = {
   getDocument(projectId, docId, fromVersion, callback) {
     const timer = new metrics.Timer('get-document')
-    const url = `${settings.apis.documentupdater.url}/project/${projectId}/doc/${docId}?fromVersion=${fromVersion}`
+    const url = `${settings.apis.documentupdater.url}/project/${projectId}/doc/${docId}?fromVersion=${fromVersion}&historyOTSupport=true`
     logger.debug(
       { projectId, docId, fromVersion },
       'getting doc from document updater'
@@ -48,7 +48,8 @@ const DocumentUpdaterManager = {
           body.version,
           body.ranges,
           body.ops,
-          body.ttlInS
+          body.ttlInS,
+          body.type
         )
       } else if (res.statusCode === 422 && body?.firstVersionInRedis) {
         callback(new ClientRequestedMissingOpsError(422, body))
@@ -153,4 +154,4 @@ const DocumentUpdaterManager = {
   },
 }
 
-module.exports = DocumentUpdaterManager
+export default DocumentUpdaterManager

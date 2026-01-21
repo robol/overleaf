@@ -1,38 +1,29 @@
-import { ChangeEvent, FC, memo, useCallback } from 'react'
-import useScopeValue from '@/shared/hooks/use-scope-value'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
-import useTutorial from '@/shared/hooks/promotions/use-tutorial'
+import { ChangeEvent, FC, memo, useCallback, useId } from 'react'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import { sendMB } from '../../../infrastructure/event-tracking'
-import { isValidTeXFile } from '../../../main/is-valid-tex-file'
 import { useTranslation } from 'react-i18next'
-import {
-  EditorSwitchBeginnerTooltip,
-  codeEditorModePrompt,
-} from './editor-switch-beginner-tooltip'
-import { useEditorManagerContext } from '@/features/ide-react/context/editor-manager-context'
+import { useEditorOpenDocContext } from '@/features/ide-react/context/editor-open-doc-context'
+import { useEditorPropertiesContext } from '@/features/ide-react/context/editor-properties-context'
+import { isVisualEditorAvailable } from '../utils/visual-editor'
 
 function EditorSwitch() {
   const { t } = useTranslation()
-  const [visual, setVisual] = useScopeValue('editor.showVisual')
-  const [codeEditorOpened] = useScopeValue('editor.codeEditorOpened')
-  const { openDocName } = useEditorManagerContext()
+  const { showVisual: visual, setShowVisual: setVisual } =
+    useEditorPropertiesContext()
+  const { openDocName } = useEditorOpenDocContext()
+  const inputId = useId()
 
-  const richTextAvailable = openDocName ? isValidTeXFile(openDocName) : false
-  const { completeTutorial } = useTutorial(codeEditorModePrompt, {
-    location: 'logs',
-    name: codeEditorModePrompt,
-  })
+  const richTextAvailable = openDocName
+    ? isVisualEditorAvailable(openDocName)
+    : false
 
   const handleChange = useCallback(
-    event => {
+    (event: ChangeEvent<HTMLInputElement>) => {
       const editorType = event.target.value
 
       switch (editorType) {
         case 'cm6':
           setVisual(false)
-          if (!codeEditorOpened) {
-            completeTutorial({ event: 'promo-click', action: 'complete' })
-          }
           break
 
         case 'rich-text':
@@ -42,7 +33,7 @@ function EditorSwitch() {
 
       sendMB('editor-switch-change', { editorType })
     },
-    [codeEditorOpened, completeTutorial, setVisual]
+    [setVisual]
   )
 
   return (
@@ -50,30 +41,30 @@ function EditorSwitch() {
       className="editor-toggle-switch"
       aria-label={t('toolbar_code_visual_editor_switch')}
     >
-      <fieldset className="toggle-switch">
-        <legend className="sr-only">Editor mode.</legend>
+      <form>
+        <fieldset className="toggle-switch">
+          <legend className="visually-hidden">Editor mode.</legend>
 
-        <input
-          type="radio"
-          name="editor"
-          value="cm6"
-          id="editor-switch-cm6"
-          className="toggle-switch-input"
-          checked={!richTextAvailable || !visual}
-          onChange={handleChange}
-        />
-        <EditorSwitchBeginnerTooltip>
-          <label htmlFor="editor-switch-cm6" className="toggle-switch-label">
+          <input
+            type="radio"
+            name="editor"
+            value="cm6"
+            id={inputId}
+            className="toggle-switch-input"
+            checked={!richTextAvailable || !visual}
+            onChange={handleChange}
+          />
+          <label htmlFor={inputId} className="toggle-switch-label">
             <span>{t('code_editor')}</span>
           </label>
-        </EditorSwitchBeginnerTooltip>
 
-        <RichTextToggle
-          checked={richTextAvailable && visual}
-          disabled={!richTextAvailable}
-          handleChange={handleChange}
-        />
-      </fieldset>
+          <RichTextToggle
+            checked={richTextAvailable && visual}
+            disabled={!richTextAvailable}
+            handleChange={handleChange}
+          />
+        </fieldset>
+      </form>
     </div>
   )
 }
@@ -84,6 +75,7 @@ const RichTextToggle: FC<{
   handleChange: (event: ChangeEvent<HTMLInputElement>) => void
 }> = ({ checked, disabled, handleChange }) => {
   const { t } = useTranslation()
+  const inputId = useId()
 
   const toggle = (
     <span>
@@ -91,13 +83,13 @@ const RichTextToggle: FC<{
         type="radio"
         name="editor"
         value="rich-text"
-        id="editor-switch-rich-text"
+        id={inputId}
         className="toggle-switch-input"
         checked={checked}
         onChange={handleChange}
         disabled={disabled}
       />
-      <label htmlFor="editor-switch-rich-text" className="toggle-switch-label">
+      <label htmlFor={inputId} className="toggle-switch-label">
         <span>{t('visual_editor')}</span>
       </label>
     </span>
@@ -116,7 +108,16 @@ const RichTextToggle: FC<{
     )
   }
 
-  return toggle
+  return (
+    <OLTooltip
+      id="rich-text-toggle-tooltip"
+      description={t('toolbar_change_editor_mode')}
+      overlayProps={{ placement: 'bottom' }}
+      tooltipProps={{ className: 'tooltip-wide' }}
+    >
+      {toggle}
+    </OLTooltip>
+  )
 }
 
 export default memo(EditorSwitch)

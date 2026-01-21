@@ -12,7 +12,7 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownToggle,
-} from '@/features/ui/components/bootstrap-5/dropdown-menu'
+} from '@/shared/components/dropdown/dropdown-menu'
 
 export default function TagsList() {
   const { t } = useTranslation()
@@ -45,7 +45,6 @@ export default function TagsList() {
       <li className="tag">
         <button type="button" className="tag-name" onClick={openCreateTagModal}>
           <Plus weight="bold" />
-
           <span className="name">{t('new_tag')}</span>
         </button>
       </li>
@@ -58,6 +57,7 @@ export default function TagsList() {
             <button
               type="button"
               className="tag-name"
+              translate="no"
               onClick={e =>
                 handleSelectTag(e as unknown as React.MouseEvent, tag._id)
               }

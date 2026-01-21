@@ -1,10 +1,9 @@
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
-import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
-import OLFormLabel from '@/features/ui/components/ol/ol-form-label'
-import OLFormSelect from '@/features/ui/components/ol/ol-form-select'
+import OLFormGroup from '@/shared/components/ol/ol-form-group'
+import OLFormLabel from '@/shared/components/ol/ol-form-label'
+import OLFormSelect from '@/shared/components/ol/ol-form-select'
 import { ChangeEventHandler, useCallback, useEffect, useRef } from 'react'
-import { Spinner } from 'react-bootstrap-5'
 import { useEditorLeftMenuContext } from '@/features/editor-left-menu/components/editor-left-menu-context'
+import OLSpinner from '@/shared/components/ol/ol-spinner'
 
 type PossibleValue = string | number | boolean
 
@@ -23,23 +22,25 @@ export type Optgroup<T extends PossibleValue = string> = {
 type SettingsMenuSelectProps<T extends PossibleValue = string> = {
   label: string
   name: string
-  options: Array<Option<T>>
-  optgroup?: Optgroup<T>
+  options?: Array<Option<T>>
+  optgroups?: Array<Optgroup<T>>
   loading?: boolean
   onChange: (val: T) => void
   value?: T
   disabled?: boolean
+  translateOptions?: 'yes' | 'no'
 }
 
 export default function SettingsMenuSelect<T extends PossibleValue = string>({
   label,
   name,
   options,
-  optgroup,
+  optgroups,
   loading,
   onChange,
   value,
   disabled = false,
+  translateOptions,
 }: SettingsMenuSelectProps<T>) {
   const handleChange: ChangeEventHandler<HTMLSelectElement> = useCallback(
     event => {
@@ -81,23 +82,7 @@ export default function SettingsMenuSelect<T extends PossibleValue = string>({
     >
       <OLFormLabel>{label}</OLFormLabel>
       {loading ? (
-        <BootstrapVersionSwitcher
-          bs3={
-            <p className="loading pull-right">
-              <i className="fa fa-fw fa-spin fa-refresh" />
-            </p>
-          }
-          bs5={
-            <p className="mb-0">
-              <Spinner
-                animation="border"
-                aria-hidden="true"
-                size="sm"
-                role="status"
-              />
-            </p>
-          }
-        />
+        <OLSpinner size="sm" />
       ) : (
         <OLFormSelect
           size="sm"
@@ -105,8 +90,9 @@ export default function SettingsMenuSelect<T extends PossibleValue = string>({
           value={value?.toString()}
           disabled={disabled}
           ref={selectRef}
+          translate={translateOptions}
         >
-          {options.map(option => (
+          {options?.map(option => (
             <option
               key={`${name}-${option.value}`}
               value={option.value.toString()}
@@ -116,8 +102,8 @@ export default function SettingsMenuSelect<T extends PossibleValue = string>({
               {option.label}
             </option>
           ))}
-          {optgroup ? (
-            <optgroup label={optgroup.label}>
+          {optgroups?.map(optgroup => (
+            <optgroup label={optgroup.label} key={optgroup.label}>
               {optgroup.options.map(option => (
                 <option
                   value={option.value.toString()}
@@ -127,7 +113,7 @@ export default function SettingsMenuSelect<T extends PossibleValue = string>({
                 </option>
               ))}
             </optgroup>
-          ) : null}
+          ))}
         </OLFormSelect>
       )}
     </OLFormGroup>

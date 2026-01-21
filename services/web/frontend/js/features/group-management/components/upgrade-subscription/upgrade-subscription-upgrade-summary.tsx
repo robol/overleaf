@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Card, ListGroup } from 'react-bootstrap-5'
+import { Card, ListGroup } from 'react-bootstrap'
 import { formatCurrency } from '@/shared/utils/currency'
 import { formatTime } from '@/features/utils/format-date'
 import {
@@ -27,7 +27,7 @@ function UpgradeSummary({ subscriptionChange }: UpgradeSummaryProps) {
       <Card.Body className="d-grid gap-2 p-3">
         <div>
           <div className="fw-bold">{t('upgrade_summary')}</div>
-          {t('you_have_x_users_on_your_subscription', {
+          {t('you_have_x_licenses_on_your_subscription', {
             groupSize: totalLicenses,
           })}
         </div>
@@ -36,7 +36,7 @@ function UpgradeSummary({ subscriptionChange }: UpgradeSummaryProps) {
             <ListGroup.Item className="bg-transparent border-0 px-0 gap-3 card-description-secondary">
               <span className="me-auto">
                 {subscriptionChange.nextInvoice.plan.name} x {totalLicenses}{' '}
-                {t('users')}
+                {t('licenses')}
               </span>
               <span data-testid="subtotal">
                 {formatCurrency(
@@ -100,7 +100,11 @@ function UpgradeSummary({ subscriptionChange }: UpgradeSummaryProps) {
                 subscriptionChange.nextInvoice.tax.amount,
                 subscriptionChange.currency
               ),
-              date: formatTime(subscriptionChange.nextInvoice.date, 'MMMM D'),
+              date: formatTime(
+                subscriptionChange.nextInvoice.date,
+                'MMMM D',
+                true
+              ),
             }
           )}
           {subscriptionChange.immediateCharge.discount !== 0 &&

@@ -1,10 +1,5 @@
-import '../marketing'
+import { renderInReactLayout } from '@/react'
 
-import ReactDOM from 'react-dom'
 import { SocketDiagnostics } from '@/features/socket-diagnostics/components/socket-diagnostics'
 
-const socketDiagnosticsContainer = document.getElementById('socket-diagnostics')
-
-if (socketDiagnosticsContainer) {
-  ReactDOM.render(<SocketDiagnostics />, socketDiagnosticsContainer)
-}
+renderInReactLayout('socket-diagnostics', () => <SocketDiagnostics />)

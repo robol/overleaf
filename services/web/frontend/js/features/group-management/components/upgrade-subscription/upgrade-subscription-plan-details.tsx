@@ -1,7 +1,7 @@
 import getMeta from '@/utils/meta'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Card, Row, Col } from 'react-bootstrap-5'
+import { Card, Row, Col } from 'react-bootstrap'
 import MaterialIcon from '@/shared/components/material-icon'
 import { formatCurrency } from '@/shared/utils/currency'
 
@@ -48,7 +48,7 @@ function UpgradeSubscriptionPlanDetails() {
             </span>
           </Col>
           <Col className="d-flex flex-column justify-content-center">
-            <div className="per-user-price-text">{t('per_user')}</div>
+            <div className="per-user-price-text">{t('per_license')}</div>
             <div className="per-user-price-text">{t('billed_yearly')}</div>
           </Col>
         </Row>

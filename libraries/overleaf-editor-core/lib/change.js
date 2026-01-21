@@ -13,7 +13,7 @@ const V2DocVersions = require('./v2_doc_versions')
 
 /**
  * @import Author from "./author"
- * @import { BlobStore } from "./types"
+ * @import { BlobStore, RawChange, ReadonlyBlobStore } from "./types"
  */
 
 /**
@@ -54,7 +54,7 @@ class Change {
   /**
    * For serialization.
    *
-   * @return {Object}
+   * @return {RawChange}
    */
   toRaw() {
     function toRaw(object) {
@@ -219,7 +219,7 @@ class Change {
    * If this Change contains any File objects, load them.
    *
    * @param {string} kind see {File#load}
-   * @param {BlobStore} blobStore
+   * @param {ReadonlyBlobStore} blobStore
    * @return {Promise<void>}
    */
   async loadFiles(kind, blobStore) {
@@ -294,6 +294,8 @@ class Change {
     if (this.v2DocVersions) {
       snapshot.updateV2DocVersions(this.v2DocVersions)
     }
+
+    snapshot.setTimestamp(this.timestamp)
   }
 
   /**

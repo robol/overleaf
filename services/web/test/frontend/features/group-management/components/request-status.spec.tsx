@@ -1,4 +1,3 @@
-import '../../../helpers/bootstrap-5'
 import RequestStatus from '@/features/group-management/components/request-status'
 
 describe('<RequestStatus />', function () {
@@ -13,7 +12,7 @@ describe('<RequestStatus />', function () {
 
   it('renders the back button', function () {
     cy.findByTestId('group-heading').within(() => {
-      cy.findByRole('button', { name: /back to subscription/i }).should(
+      cy.findByRole('link', { name: /back to subscription/i }).should(
         'have.attr',
         'href',
         '/user/subscription'
@@ -36,7 +35,7 @@ describe('<RequestStatus />', function () {
   })
 
   it('renders the link to subscriptions', function () {
-    cy.findByRole('button', { name: /go to subscriptions/i }).should(
+    cy.findByRole('link', { name: /go to subscriptions/i }).should(
       'have.attr',
       'href',
       '/user/subscription'

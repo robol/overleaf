@@ -16,7 +16,7 @@ const assert = require('../assert')
 const blobHash = require('../blob_hash')
 const mongodb = require('../mongodb')
 const persistor = require('../persistor')
-const projectKey = require('../project_key')
+const projectKey = require('@overleaf/object-persistor/src/ProjectKey.js')
 const streams = require('../streams')
 const postgresBackend = require('./postgres')
 const mongoBackend = require('./mongo')
@@ -24,6 +24,7 @@ const logger = require('@overleaf/logger')
 
 /** @import { Readable } from 'stream' */
 
+/** @type {Map<string, { blob: core.Blob, demoted: boolean}>} */
 const GLOBAL_BLOBS = new Map()
 
 function makeGlobalKey(hash) {
@@ -343,6 +344,11 @@ class BlobStore {
     return blob
   }
 
+  /**
+   *
+   * @param {Array<string>} hashes
+   * @return {Promise<*[]>}
+   */
   async getBlobs(hashes) {
     assert.array(hashes, 'bad hashes')
     const nonGlobalHashes = []
@@ -354,6 +360,9 @@ class BlobStore {
       } else {
         nonGlobalHashes.push(hash)
       }
+    }
+    if (nonGlobalHashes.length === 0) {
+      return blobs // to avoid unnecessary database lookup
     }
     const projectBlobs = await this.backend.findBlobs(
       this.projectId,
@@ -424,6 +433,7 @@ module.exports = {
   getProjectBlobsBatch,
   loadGlobalBlobs,
   makeProjectKey,
+  makeGlobalKey,
   makeBlobForFile,
   getStringLengthOfFile,
   GLOBAL_BLOBS,

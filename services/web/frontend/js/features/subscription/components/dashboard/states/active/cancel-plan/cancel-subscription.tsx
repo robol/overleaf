@@ -8,15 +8,12 @@ import {
   cancelSubscriptionUrl,
   redirectAfterCancelSubscriptionUrl,
 } from '../../../../../data/subscription-url'
-import showDowngradeOption from '../../../../../util/show-downgrade-option'
 import GenericErrorAlert from '../../../generic-error-alert'
 import DowngradePlanButton from './downgrade-plan-button'
 import ExtendTrialButton from './extend-trial-button'
 import { useLocation } from '../../../../../../../shared/hooks/use-location'
 import { debugConsole } from '@/utils/debugging'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import moment from 'moment'
-import OLNotification from '@/features/ui/components/ol/ol-notification'
+import OLButton from '@/shared/components/ol/ol-button'
 
 const planCodeToDowngradeTo = 'paid-personal'
 
@@ -36,12 +33,10 @@ function ConfirmCancelSubscriptionButton({
   return (
     <OLButton
       isLoading={isLoading}
+      loadingLabel={t('processing_uppercase') + '…'}
       disabled={disabled}
       onClick={onClick}
-      className={showNoThanks ? 'btn-inline-link' : undefined}
-      bs3Props={{
-        loading: isLoading ? t('processing_uppercase') + '…' : text,
-      }}
+      variant={showNoThanks ? 'link' : undefined}
     >
       {text}
     </OLButton>
@@ -159,27 +154,16 @@ export function CancelSubscription() {
     isSuccessSecondaryAction ||
     isSuccessCancel
 
-  if (!personalSubscription || !('recurly' in personalSubscription)) return null
+  if (!personalSubscription || !('payment' in personalSubscription)) return null
 
-  const showDowngrade = showDowngradeOption(
-    personalSubscription.plan.planCode,
-    personalSubscription.plan.groupPlan,
-    personalSubscription.recurly.trial_ends_at,
-    personalSubscription.recurly.pausedAt,
-    personalSubscription.recurly.remainingPauseCycles
-  )
+  const showDowngrade =
+    personalSubscription.payment.isEligibleForDowngradeUpsell
   const planToDowngradeTo = plans.find(
     plan => plan.planCode === planCodeToDowngradeTo
   )
   if (showDowngrade && !planToDowngradeTo) {
     return <LoadingSpinner />
   }
-
-  const startDate = moment.utc(personalSubscription.recurly.account.created_at)
-  const pricingChangeEffectiveDate = moment.utc('2025-01-08T12:00:00Z')
-  const displayPricingWarning =
-    personalSubscription.plan.groupPlan &&
-    startDate.isBefore(pricingChangeEffectiveDate)
 
   async function handleCancelSubscription() {
     try {
@@ -194,19 +178,6 @@ export function CancelSubscription() {
 
   return (
     <>
-      {displayPricingWarning && (
-        <OLNotification
-          type="warning"
-          content={
-            <>
-              <h2 className="pricing-warning-heading">
-                {t('cancel_group_price_warning_heading')}
-              </h2>
-              <p>{t('cancel_group_price_warning')}</p>
-            </>
-          }
-        />
-      )}
       <div className="text-center">
         <p>
           <strong>{t('wed_love_you_to_stay')}</strong>

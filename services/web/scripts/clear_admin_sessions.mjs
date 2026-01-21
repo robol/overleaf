@@ -1,8 +1,9 @@
 import {
   db,
   READ_PREFERENCE_SECONDARY,
-} from '../app/src/infrastructure/mongodb.js'
-import UserSessionsManager from '../app/src/Features/User/UserSessionsManager.js'
+} from '../app/src/infrastructure/mongodb.mjs'
+import UserSessionsManager from '../app/src/Features/User/UserSessionsManager.mjs'
+import { scriptRunner } from './lib/ScriptRunner.mjs'
 
 const COMMIT = process.argv.includes('--commit')
 const LOG_SESSIONS = !process.argv.includes('--log-sessions=false')
@@ -58,7 +59,7 @@ async function main() {
 }
 
 try {
-  await main()
+  await scriptRunner(main)
   console.error('Done.')
   process.exit(0)
 } catch (error) {

@@ -1,12 +1,12 @@
 import { useTranslation } from 'react-i18next'
 import { sendMB } from '@/infrastructure/event-tracking'
-import OLButton from '@/features/ui/components/ol/ol-button'
+import OLButton from '@/shared/components/ol/ol-button'
 import {
   OLModalBody,
   OLModalFooter,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
+} from '@/shared/components/ol/ol-modal'
 
 type ViewOnlyAccessModalContentProps = {
   handleHide: () => void
@@ -19,13 +19,13 @@ export default function ViewOnlyAccessModalContent({
 
   return (
     <>
-      <OLModalHeader closeButton>
+      <OLModalHeader>
         <OLModalTitle>{t('view_only_access')}</OLModalTitle>
       </OLModalHeader>
 
       <OLModalBody>
-        <p>{t('this_project_already_has_maximum_editors')}</p>
-        <p>{t('please_ask_the_project_owner_to_upgrade_more_editors')}</p>
+        <p>{t('this_project_already_has_maximum_collaborators')}</p>
+        <p>{t('please_ask_the_project_owner_to_upgrade_more_collaborators')}</p>
       </OLModalBody>
       <OLModalFooter>
         <OLButton

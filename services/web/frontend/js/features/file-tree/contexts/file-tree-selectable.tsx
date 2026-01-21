@@ -1,3 +1,6 @@
+// TODO: The types in this file have mismatches between string and string[] and
+// it's not immediately clear how to resolve it. I've therefore left in a bunch
+// of `any` types. We should fix this.
 import {
   createContext,
   useCallback,
@@ -120,10 +123,13 @@ function fileTreeSelectableReadOnlyReducer(
   }
 }
 
-export const FileTreeSelectableProvider: FC<{
-  onSelect: (value: FindResult[]) => void
-}> = ({ onSelect, children }) => {
-  const { _id: projectId, rootDocId } = useProjectContext()
+export const FileTreeSelectableProvider: FC<
+  React.PropsWithChildren<{
+    onSelect: (value: FindResult[]) => void
+  }>
+> = ({ onSelect, children }) => {
+  const { projectId, project } = useProjectContext()
+  const rootDocId = project?.rootDocId
 
   const [initialSelectedEntityId] = usePersistedState(
     `doc.open_id.${projectId}`,
@@ -206,21 +212,24 @@ export const FileTreeSelectableProvider: FC<{
     )
   )
 
-  const select = useCallback(id => {
+  const select = useCallback((id: any) => {
     dispatch({ type: ACTION_TYPES.SELECT, id })
   }, [])
 
-  const unselect = useCallback(id => {
+  const unselect = useCallback((id: any) => {
     dispatch({ type: ACTION_TYPES.UNSELECT, id })
   }, [])
 
-  const selectOrMultiSelectEntity = useCallback((id, isMultiSelect) => {
-    const actionType = isMultiSelect
-      ? ACTION_TYPES.MULTI_SELECT
-      : ACTION_TYPES.SELECT
+  const selectOrMultiSelectEntity = useCallback(
+    (id: any, isMultiSelect: any) => {
+      const actionType = isMultiSelect
+        ? ACTION_TYPES.MULTI_SELECT
+        : ACTION_TYPES.SELECT
 
-    dispatch({ type: actionType, id })
-  }, [])
+      dispatch({ type: actionType, id })
+    },
+    []
+  )
 
   // TODO: wrap in useMemo
   const value = {
@@ -254,7 +263,7 @@ export function useSelectableEntity(id: string, type: string) {
   const isSelected = selectedEntityIds.has(id)
 
   const buildSelectedRange = useCallback(
-    id => {
+    (id: string) => {
       const selected = []
 
       let started = false
@@ -306,7 +315,7 @@ export function useSelectableEntity(id: string, type: string) {
   }, [fileTreeData, selectedEntityIds, view])
 
   const handleEvent = useCallback(
-    ev => {
+    (ev: any) => {
       ev.stopPropagation()
       // use Command (macOS) or Ctrl (other OS) to select multiple items,
       // as long as the root folder wasn't selected
@@ -342,7 +351,7 @@ export function useSelectableEntity(id: string, type: string) {
   )
 
   const handleClick = useCallback(
-    ev => {
+    (ev: any) => {
       handleEvent(ev)
       if (!ev.ctrlKey && !ev.metaKey) {
         setContextMenuCoords(null)
@@ -352,7 +361,7 @@ export function useSelectableEntity(id: string, type: string) {
   )
 
   const handleKeyPress = useCallback(
-    ev => {
+    (ev: any) => {
       if (ev.key === 'Enter' || ev.key === ' ') {
         handleEvent(ev)
       }
@@ -361,7 +370,7 @@ export function useSelectableEntity(id: string, type: string) {
   )
 
   const handleContextMenu = useCallback(
-    ev => {
+    (ev: any) => {
       // make sure the right-clicked entity gets selected
       if (!selectedEntityIds.has(id)) {
         handleEvent(ev)

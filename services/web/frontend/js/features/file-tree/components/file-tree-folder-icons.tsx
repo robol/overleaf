@@ -1,76 +1,50 @@
 import { useTranslation } from 'react-i18next'
-import Icon from '../../../shared/components/icon'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
 import MaterialIcon from '@/shared/components/material-icon'
-import { useFeatureFlag } from '@/shared/context/split-test-context'
+import { useIsNewEditorEnabled } from '@/features/ide-redesign/utils/new-editor-utils'
 
 function FileTreeFolderIcons({
   expanded,
   onExpandCollapseClick,
 }: {
   expanded: boolean
-  onExpandCollapseClick: () => void
+  onExpandCollapseClick?: () => void
 }) {
   const { t } = useTranslation()
-
-  const newEditor = useFeatureFlag('editor-redesign')
+  const newEditor = useIsNewEditorEnabled()
 
   if (newEditor) {
     return (
       <>
-        <button
+        <div
+          // TODO ide-redesign-cleanup: rename the class now its no longer a button
           className="folder-expand-collapse-button"
-          onClick={onExpandCollapseClick}
           aria-label={expanded ? t('collapse') : t('expand')}
         >
           <MaterialIcon
             type={expanded ? 'expand_more' : 'chevron_right'}
             className="file-tree-expand-icon"
           />
-        </button>
+        </div>
       </>
     )
   }
 
   return (
-    <BootstrapVersionSwitcher
-      bs3={
-        <>
-          <button
-            onClick={onExpandCollapseClick}
-            aria-label={expanded ? t('collapse') : t('expand')}
-          >
-            <Icon
-              type={expanded ? 'angle-down' : 'angle-right'}
-              fw
-              className="file-tree-expand-icon"
-            />
-          </button>
-          <Icon
-            type={expanded ? 'folder-open' : 'folder'}
-            fw
-            className="file-tree-folder-icon"
-          />
-        </>
-      }
-      bs5={
-        <>
-          <button
-            onClick={onExpandCollapseClick}
-            aria-label={expanded ? t('collapse') : t('expand')}
-          >
-            <MaterialIcon
-              type={expanded ? 'expand_more' : 'chevron_right'}
-              className="file-tree-expand-icon"
-            />
-          </button>
-          <MaterialIcon
-            type={expanded ? 'folder_open' : 'folder'}
-            className="file-tree-folder-icon"
-          />
-        </>
-      }
-    />
+    <>
+      <button
+        onClick={onExpandCollapseClick}
+        aria-label={expanded ? t('collapse') : t('expand')}
+      >
+        <MaterialIcon
+          type={expanded ? 'expand_more' : 'chevron_right'}
+          className="file-tree-expand-icon"
+        />
+      </button>
+      <MaterialIcon
+        type={expanded ? 'folder_open' : 'folder'}
+        className="file-tree-folder-icon"
+      />
+    </>
   )
 }
 

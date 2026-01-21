@@ -1,4 +1,3 @@
-import '../../../../helpers/bootstrap-3'
 import { useEffect } from 'react'
 import FileTreeModalCreateFile from '../../../../../../frontend/js/features/file-tree/components/modals/file-tree-modal-create-file'
 import { useFileTreeActionable } from '../../../../../../frontend/js/features/file-tree/contexts/file-tree-actionable'
@@ -375,6 +374,100 @@ describe('<FileTreeModalCreateFile/>', function () {
       'have.value',
       'test.tex'
     )
+
+    cy.findByRole('button', { name: 'Create' }).click()
+
+    cy.get('@createLinkedFile')
+      .its('request.body')
+      .should('deep.equal', {
+        name: 'test.tex',
+        provider: 'url',
+        parent_folder_id: 'root-folder-id',
+        data: { url: 'https://example.com/example.tex' },
+      })
+  })
+
+  it('imports from a pasted URL and removes a trailing dot', function () {
+    cy.intercept('/project/*/linked_file', {
+      statusCode: 204,
+    }).as('createLinkedFile')
+
+    cy.mount(
+      <EditorProviders>
+        <FileTreeProvider>
+          <OpenWithMode mode="url" />
+        </FileTreeProvider>
+      </EditorProviders>
+    )
+
+    cy.wrap(null).then(() => {
+      const clipboardData = new DataTransfer()
+      clipboardData.setData('text/plain', 'https://example.com/example.tex.')
+
+      cy.findByLabelText('URL to fetch the file from').trigger('paste', {
+        clipboardData,
+      })
+    })
+
+    cy.findByLabelText('URL to fetch the file from').should(
+      'have.value',
+      'https://example.com/example.tex'
+    )
+
+    cy.findByLabelText('File Name In This Project').should(
+      'have.value',
+      'example.tex'
+    )
+
+    cy.findByLabelText('File Name In This Project').clear()
+    cy.findByLabelText('File Name In This Project').type('test.tex')
+
+    cy.findByRole('button', { name: 'Create' }).click()
+
+    cy.get('@createLinkedFile')
+      .its('request.body')
+      .should('deep.equal', {
+        name: 'test.tex',
+        provider: 'url',
+        parent_folder_id: 'root-folder-id',
+        data: { url: 'https://example.com/example.tex' },
+      })
+  })
+
+  it('imports from a pasted URL without a trailing dot and keeps it unchanged', function () {
+    cy.intercept('/project/*/linked_file', {
+      statusCode: 204,
+    }).as('createLinkedFile')
+
+    cy.mount(
+      <EditorProviders>
+        <FileTreeProvider>
+          <OpenWithMode mode="url" />
+        </FileTreeProvider>
+      </EditorProviders>
+    )
+
+    cy.wrap(null).then(() => {
+      const clipboardData = new DataTransfer()
+      clipboardData.setData('text/plain', 'https://example.com/example.tex')
+
+      cy.findByLabelText('URL to fetch the file from').trigger('paste', {
+        clipboardData,
+      })
+    })
+
+    cy.findByLabelText('URL to fetch the file from').should(
+      'have.value',
+      'https://example.com/example.tex'
+    )
+
+    cy.findByLabelText('File Name In This Project').should(
+      'have.value',
+      'example.tex'
+    )
+
+    cy.findByLabelText('File Name In This Project').clear()
+    cy.findByLabelText('File Name In This Project').type('test.tex')
 
     cy.findByRole('button', { name: 'Create' }).click()
 

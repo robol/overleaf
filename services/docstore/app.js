@@ -1,20 +1,22 @@
 // Metrics must be initialized before importing anything else
-require('@overleaf/metrics/initialize')
+import '@overleaf/metrics/initialize.js'
 
-const Events = require('node:events')
-const Metrics = require('@overleaf/metrics')
-const Settings = require('@overleaf/settings')
-const logger = require('@overleaf/logger')
-const express = require('express')
-const bodyParser = require('body-parser')
-const {
-  celebrate: validate,
+import Events from 'node:events'
+import Metrics from '@overleaf/metrics'
+import Settings from '@overleaf/settings'
+import logger from '@overleaf/logger'
+import express from 'express'
+import bodyParser from 'body-parser'
+import {
+  celebrate as validate,
   Joi,
-  errors: handleValidationErrors,
-} = require('celebrate')
-const { mongoClient } = require('./app/js/mongodb')
-const Errors = require('./app/js/Errors')
-const HttpController = require('./app/js/HttpController')
+  errors as handleValidationErrors,
+} from 'celebrate'
+import mongodb from './app/js/mongodb.js'
+import Errors from './app/js/Errors.js'
+import HttpController from './app/js/HttpController.js'
+
+const { mongoClient } = mongodb
 
 Events.setMaxListeners(20)
 
@@ -50,6 +52,14 @@ app.param('doc_id', function (req, res, next, docId) {
 app.get('/project/:project_id/doc-deleted', HttpController.getAllDeletedDocs)
 app.get('/project/:project_id/doc', HttpController.getAllDocs)
 app.get('/project/:project_id/ranges', HttpController.getAllRanges)
+app.get(
+  '/project/:project_id/comment-thread-ids',
+  HttpController.getCommentThreadIds
+)
+app.get(
+  '/project/:project_id/tracked-changes-user-ids',
+  HttpController.getTrackedChangesUserIds
+)
 app.get('/project/:project_id/has-ranges', HttpController.projectHasRanges)
 app.get('/project/:project_id/doc/:doc_id', HttpController.getDoc)
 app.get('/project/:project_id/doc/:doc_id/deleted', HttpController.isDocDeleted)
@@ -88,14 +98,17 @@ app.get('/status', (req, res) => res.send('docstore is alive'))
 
 app.use(handleValidationErrors())
 app.use(function (error, req, res, next) {
-  logger.error({ err: error, req }, 'request errored')
   if (error instanceof Errors.NotFoundError) {
+    logger.warn({ req }, 'not found')
     res.sendStatus(404)
   } else if (error instanceof Errors.DocModifiedError) {
+    logger.warn({ req }, 'conflict: doc modified')
     res.sendStatus(409)
   } else if (error instanceof Errors.DocVersionDecrementedError) {
+    logger.warn({ req }, 'conflict: doc version decremented')
     res.sendStatus(409)
   } else {
+    logger.error({ err: error, req }, 'request errored')
     res.status(500).send('Oops, something went wrong')
   }
 })
@@ -103,7 +116,7 @@ app.use(function (error, req, res, next) {
 const { port } = Settings.internal.docstore
 const { host } = Settings.internal.docstore
 
-if (!module.parent) {
+if (import.meta.main) {
   // Called directly
   mongoClient
     .connect()
@@ -126,4 +139,4 @@ if (!module.parent) {
     })
 }
 
-module.exports = app
+export default app

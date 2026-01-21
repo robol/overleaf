@@ -1,5 +1,11 @@
 import { HistoryRanges } from '../../../document-updater/app/js/types'
-import { LinkedFileData, RawOrigin } from 'overleaf-editor-core/lib/types'
+import {
+  LinkedFileData,
+  RawEditOperation,
+  RawOrigin,
+  CommentRawData,
+  TrackedChangeRawData,
+} from 'overleaf-editor-core/lib/types'
 
 export type Update =
   | TextUpdate
@@ -37,6 +43,15 @@ export type TextUpdate = {
     doc_length: number
     doc_hash?: string
     history_doc_length?: number
+  }
+}
+
+export type HistoryOTEditOperationUpdate = {
+  doc: string
+  op: RawEditOperation[]
+  v: number
+  meta: UpdateMeta & {
+    pathname: string
   }
 }
 
@@ -105,6 +120,10 @@ export type ResyncDocContentUpdate = {
     content: string
     version: number
     ranges?: Ranges
+    historyOTRanges?: {
+      comments: CommentRawData[]
+      trackedChanges: TrackedChangeRawData[]
+    }
     resolvedCommentIds?: string[]
   }
   projectHistoryId: string

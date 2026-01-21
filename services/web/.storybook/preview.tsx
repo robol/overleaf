@@ -9,14 +9,14 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 // @ts-ignore
 import en from '../../../services/web/locales/en.json'
-import { bootstrapVersionArg } from './utils/with-bootstrap-switcher'
 
-function resetMeta(bootstrapVersion?: 3 | 5) {
+function resetMeta() {
   window.metaAttributesCache = new Map()
   window.metaAttributesCache.set('ol-i18n', { currentLangCode: 'en' })
-  if (bootstrapVersion) {
-    window.metaAttributesCache.set('ol-bootstrapVersion', bootstrapVersion)
-  }
+  window.metaAttributesCache.set('ol-capabilities', ['chat'])
+  window.metaAttributesCache.set('ol-compileSettings', {
+    compileTimeout: 20,
+  })
   window.metaAttributesCache.set('ol-ExposedSettings', {
     adminEmail: 'placeholder@example.com',
     appName: 'Overleaf',
@@ -126,8 +126,16 @@ const preview: Preview = {
       // render stories in iframes, to isolate modals
       inlineStories: false,
     },
-    // Default to Bootstrap 3 styles
-    bootstrap5: false,
+    options: {
+      storySort: {
+        method: 'alphabetical',
+        order: [
+          'Storybook Guideline',
+          ['Foundations', 'Storybook builds', 'Feature Flags'],
+          'Shared',
+        ],
+      },
+    },
   },
   globalTypes: {
     theme: {
@@ -144,34 +152,20 @@ const preview: Preview = {
     },
   },
   loaders: [
-    async ({ globals }) => {
-      const { theme } = globals
-
+    async () => {
       return {
-        // NOTE: this uses `${theme}style.less` rather than `${theme}.less`
-        // so that webpack only bundles files ending with "style.less"
-        bootstrap3Style: await import(
-          `!!to-string-loader!css-loader!less-loader!../../../services/web/frontend/stylesheets/${theme}style.less`
-        ),
-        // Themes are applied differently in Bootstrap 5 code
-        bootstrap5Style: await import(
+        mainStyle: await import(
           // @ts-ignore
-          `!!to-string-loader!css-loader!resolve-url-loader!sass-loader!../../../services/web/frontend/stylesheets/bootstrap-5/main-style.scss`
+          `!!to-string-loader!css-loader!resolve-url-loader!sass-loader!../../../services/web/frontend/stylesheets/main-style.scss`
         ),
       }
     },
   ],
   decorators: [
     (Story, context) => {
-      const { bootstrap3Style, bootstrap5Style } = context.loaded
-      const bootstrapVersion = Number(
-        context.args[bootstrapVersionArg] ||
-          (context.parameters.bootstrap5 ? 5 : 3)
-      ) as 3 | 5
-      const activeStyle =
-        bootstrapVersion === 5 ? bootstrap5Style : bootstrap3Style
+      const { mainStyle } = context.loaded
 
-      resetMeta(bootstrapVersion)
+      resetMeta()
 
       return (
         <div
@@ -179,12 +173,8 @@ const preview: Preview = {
             context.globals.theme === 'main-light-' ? 'light' : 'default'
           }
         >
-          {activeStyle && <style>{activeStyle.default}</style>}
-          <Story
-            {...context}
-            // force re-renders when switching between Bootstrap versions
-            key={bootstrapVersion}
-          />
+          {mainStyle && <style>{mainStyle.default}</style>}
+          <Story {...context} />
         </div>
       )
     },

@@ -1,24 +1,30 @@
 // Metrics must be initialized before importing anything else
-import '@overleaf/metrics/initialize.js'
+import { metricsModuleImportStartTime } from '@overleaf/metrics/initialize.js'
 
-import Modules from './app/src/infrastructure/Modules.js'
+import Modules from './app/src/infrastructure/Modules.mjs'
 import metrics from '@overleaf/metrics'
 import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
-import PlansLocator from './app/src/Features/Subscription/PlansLocator.js'
-import HistoryManager from './app/src/Features/History/HistoryManager.js'
-import SiteAdminHandler from './app/src/infrastructure/SiteAdminHandler.js'
+import PlansLocator from './app/src/Features/Subscription/PlansLocator.mjs'
+import HistoryManager from './app/src/Features/History/HistoryManager.mjs'
+import SiteAdminHandler from './app/src/infrastructure/SiteAdminHandler.mjs'
 import http from 'node:http'
 import https from 'node:https'
-import * as Serializers from './app/src/infrastructure/LoggerSerializers.js'
+import Serializers from './app/src/infrastructure/LoggerSerializers.mjs'
 import Server from './app/src/infrastructure/Server.mjs'
-import QueueWorkers from './app/src/infrastructure/QueueWorkers.js'
-import mongodb from './app/src/infrastructure/mongodb.js'
-import mongoose from './app/src/infrastructure/Mongoose.js'
-import { triggerGracefulShutdown } from './app/src/infrastructure/GracefulShutdown.js'
-import FileWriter from './app/src/infrastructure/FileWriter.js'
+import QueueWorkers from './app/src/infrastructure/QueueWorkers.mjs'
+import mongodb from './app/src/infrastructure/mongodb.mjs'
+import mongoose from './app/src/infrastructure/Mongoose.mjs'
+import { triggerGracefulShutdown } from './app/src/infrastructure/GracefulShutdown.mjs'
+import FileWriter from './app/src/infrastructure/FileWriter.mjs'
 import { fileURLToPath } from 'node:url'
-import Features from './app/src/infrastructure/Features.js'
+
+metrics.gauge(
+  'web_startup',
+  performance.now() - metricsModuleImportStartTime,
+  1,
+  { path: 'imports' }
+)
 
 logger.initialize(process.env.METRICS_APP_NAME || 'web')
 logger.logger.serializers.user = Serializers.user
@@ -49,14 +55,28 @@ if (Settings.catchErrors) {
 // Create ./data/dumpFolder if needed
 FileWriter.ensureDumpFolderExists()
 
-if (
-  !Features.hasFeature('project-history-blobs') &&
-  !Features.hasFeature('filestore')
-) {
-  throw new Error(
-    'invalid config: must enable either project-history-blobs (Settings.enableProjectHistoryBlobs=true) or enable filestore (Settings.disableFilestore=false)'
-  )
+// handle SIGTERM for graceful shutdown in kubernetes
+process.on('SIGTERM', function (signal) {
+  triggerGracefulShutdown(Server.server, signal)
+})
+
+const beforeWaitForMongoAndGlobalBlobs = performance.now()
+try {
+  await Promise.all([
+    mongodb.connectionPromise,
+    mongoose.connectionPromise,
+    HistoryManager.loadGlobalBlobsPromise,
+  ])
+} catch (err) {
+  logger.fatal({ err }, 'Cannot connect to mongo. Exiting.')
+  process.exit(1)
 }
+metrics.gauge(
+  'web_startup',
+  performance.now() - beforeWaitForMongoAndGlobalBlobs,
+  1,
+  { path: 'waitForMongoAndGlobalBlobs' }
+)
 
 const port = Settings.port || Settings.internal.web.port || 3000
 const host = Settings.internal.web.host || '127.0.0.1'
@@ -69,42 +89,33 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 
   PlansLocator.ensurePlansAreSetupCorrectly()
 
-  Promise.all([
-    mongodb.connectionPromise,
-    mongoose.connectionPromise,
-    HistoryManager.promises.loadGlobalBlobs(),
-  ])
-    .then(async () => {
-      Server.server.listen(port, host, function () {
-        logger.debug(`web starting up, listening on ${host}:${port}`)
-        logger.debug(`${http.globalAgent.maxSockets} sockets enabled`)
-        // wait until the process is ready before monitoring the event loop
-        metrics.event_loop.monitor(logger)
-      })
-      QueueWorkers.start()
-      await Modules.start()
-    })
-    .catch(err => {
-      logger.fatal({ err }, 'Cannot connect to mongo. Exiting.')
-      process.exit(1)
-    })
+  Server.server.listen(port, host, function () {
+    logger.debug(`web starting up, listening on ${host}:${port}`)
+    logger.debug(`${http.globalAgent.maxSockets} sockets enabled`)
+    // wait until the process is ready before monitoring the event loop
+    metrics.event_loop.monitor(logger)
+
+    // Record metrics for the total startup time before listening on HTTP.
+    metrics.gauge(
+      'web_startup',
+      performance.now() - metricsModuleImportStartTime,
+      1,
+      { path: 'metricsModuleImportToHTTPListen' }
+    )
+  })
+  try {
+    QueueWorkers.start()
+  } catch (err) {
+    logger.fatal({ err }, 'failed to start queue processing')
+  }
+  try {
+    await Modules.start()
+  } catch (err) {
+    logger.fatal({ err }, 'failed to start web module background jobs')
+  }
 }
 
 // initialise site admin tasks
-Promise.all([
-  mongodb.connectionPromise,
-  mongoose.connectionPromise,
-  HistoryManager.promises.loadGlobalBlobs(),
-])
-  .then(() => SiteAdminHandler.initialise())
-  .catch(err => {
-    logger.fatal({ err }, 'Cannot connect to mongo. Exiting.')
-    process.exit(1)
-  })
-
-// handle SIGTERM for graceful shutdown in kubernetes
-process.on('SIGTERM', function (signal) {
-  triggerGracefulShutdown(Server.server, signal)
-})
+SiteAdminHandler.initialise()
 
 export default Server.server

@@ -4,6 +4,7 @@ import GroupPlan from './group-plan'
 import CommonsPlan from './commons-plan'
 import PausedPlan from './paused-plan'
 import getMeta from '../../../../utils/meta'
+import { getUserSubscriptionState } from '../../util/user'
 
 function CurrentPlanWidget() {
   const usersBestSubscription = getMeta('ol-usersBestSubscription')
@@ -13,13 +14,17 @@ function CurrentPlanWidget() {
   }
 
   const { type } = usersBestSubscription
-  const isFreePlan = type === 'free' || type === 'standalone-ai-add-on'
-  const isIndividualPlan = type === 'individual'
+  const isFreePlan =
+    type === 'free' ||
+    type === 'standalone-ai-add-on' ||
+    (type === 'individual' && usersBestSubscription.plan?.name === 'Free')
+  const isIndividualPlan =
+    type === 'individual' && !(usersBestSubscription.plan?.name === 'Free')
   const isGroupPlan = type === 'group'
   const isCommonsPlan = type === 'commons'
   const isPaused =
     isIndividualPlan &&
-    usersBestSubscription.subscription?.recurlyStatus?.state === 'paused'
+    getUserSubscriptionState(usersBestSubscription) === 'paused'
 
   const featuresPageURL = '/learn/how-to/Overleaf_premium_features'
   const subscriptionPageUrl = '/user/subscription'

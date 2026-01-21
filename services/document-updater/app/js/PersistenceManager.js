@@ -95,6 +95,20 @@ function getDoc(projectId, docId, options = {}, _callback) {
           status: body.pathname === '' ? 'zero-length' : 'undefined',
         })
       }
+
+      if (body.otMigrationStage > 0) {
+        // Use history-ot
+        body.lines = { content: body.lines.join('\n') }
+        body.ranges = {}
+      }
+
+      if (!body.projectHistoryId) {
+        logger.warn(
+          { projectId, docId },
+          'projectHistoryId not found for doc from web'
+        )
+      }
+
       callback(
         null,
         body.lines,

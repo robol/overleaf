@@ -1,4 +1,8 @@
-import useCollapsiblePanel from '@/features/ide-react/hooks/use-collapsible-panel'
+import { sendSearchEvent } from '@/features/event-tracking/search-events'
+import { useProjectContext } from '@/shared/context/project-context'
+import useEventListener from '@/shared/hooks/use-event-listener'
+import usePersistedState from '@/shared/hooks/use-persisted-state'
+import { isMac } from '@/shared/utils/os'
 import {
   createContext,
   Dispatch,
@@ -6,6 +10,7 @@ import {
   SetStateAction,
   useCallback,
   useContext,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -17,12 +22,14 @@ export type RailTabKey =
   | 'integrations'
   | 'review-panel'
   | 'chat'
-  | 'errors'
+  | 'full-project-search'
+  | 'workbench'
+
+export type RailModalKey = 'keyboard-shortcuts' | 'contact-us' | 'dictionary'
 
 const RailContext = createContext<
   | {
       selectedTab: RailTabKey
-      setSelectedTab: Dispatch<SetStateAction<RailTabKey>>
       isOpen: boolean
       setIsOpen: Dispatch<SetStateAction<boolean>>
       panelRef: React.RefObject<ImperativePanelHandle>
@@ -31,36 +38,103 @@ const RailContext = createContext<
       handlePaneCollapse: () => void
       resizing: boolean
       setResizing: Dispatch<SetStateAction<boolean>>
+      activeModal: RailModalKey | null
+      setActiveModal: Dispatch<SetStateAction<RailModalKey | null>>
+      openTab: (tab: RailTabKey) => void
     }
   | undefined
 >(undefined)
 
-export const RailProvider: FC = ({ children }) => {
-  const [isOpen, setIsOpen] = useState(true)
+export const RailProvider: FC<React.PropsWithChildren> = ({ children }) => {
+  const { projectId } = useProjectContext()
+  const [isOpen, setIsOpen] = usePersistedState(
+    `rail-is-open-${projectId}`,
+    true
+  )
   const [resizing, setResizing] = useState(false)
+  const [activeModal, setActiveModalInternal] = useState<RailModalKey | null>(
+    null
+  )
+  const setActiveModal: Dispatch<SetStateAction<RailModalKey | null>> =
+    useCallback(modalKey => {
+      setActiveModalInternal(modalKey)
+    }, [])
+
   const panelRef = useRef<ImperativePanelHandle>(null)
-  useCollapsiblePanel(isOpen, panelRef)
 
   const togglePane = useCallback(() => {
     setIsOpen(value => !value)
-  }, [])
+  }, [setIsOpen])
 
   const handlePaneExpand = useCallback(() => {
     setIsOpen(true)
-  }, [])
+  }, [setIsOpen])
 
   const handlePaneCollapse = useCallback(() => {
     setIsOpen(false)
-  }, [])
+  }, [setIsOpen])
 
-  // NOTE: The file tree **MUST** be the first tab to be opened
-  //       since it is responsible for opening the initial document.
-  const [selectedTab, setSelectedTab] = useState<RailTabKey>('file-tree')
+  const [selectedTab, setSelectedTab] = usePersistedState<RailTabKey>(
+    `selected-rail-tab-${projectId}`,
+    'file-tree'
+  )
+
+  // Keep the panel collapse/expanded state in sync with isOpen and selectedTab
+  useLayoutEffect(() => {
+    const panelHandle = panelRef.current
+
+    if (panelHandle) {
+      if (isOpen) {
+        panelHandle.expand()
+      } else {
+        panelHandle.collapse()
+      }
+    }
+  }, [isOpen, selectedTab])
+
+  const openTab = useCallback(
+    (tab: RailTabKey) => {
+      setSelectedTab(tab)
+      setIsOpen(true)
+    },
+    [setIsOpen, setSelectedTab]
+  )
+
+  useEventListener(
+    'ui.toggle-review-panel',
+    useCallback(() => {
+      if (isOpen && selectedTab === 'review-panel') {
+        handlePaneCollapse()
+      } else {
+        openTab('review-panel')
+      }
+    }, [handlePaneCollapse, selectedTab, isOpen, openTab])
+  )
+
+  useEventListener(
+    'keydown',
+    useCallback(
+      (event: KeyboardEvent) => {
+        if (
+          (isMac ? event.metaKey : event.ctrlKey) &&
+          event.shiftKey &&
+          event.code === 'KeyF'
+        ) {
+          event.preventDefault()
+          sendSearchEvent('search-open', {
+            searchType: 'full-project',
+            method: 'keyboard',
+          })
+          openTab('full-project-search')
+        }
+      },
+      [openTab]
+    )
+  )
 
   const value = useMemo(
     () => ({
       selectedTab,
-      setSelectedTab,
       isOpen,
       setIsOpen,
       panelRef,
@@ -69,10 +143,12 @@ export const RailProvider: FC = ({ children }) => {
       handlePaneCollapse,
       resizing,
       setResizing,
+      activeModal,
+      setActiveModal,
+      openTab,
     }),
     [
       selectedTab,
-      setSelectedTab,
       isOpen,
       setIsOpen,
       panelRef,
@@ -81,6 +157,9 @@ export const RailProvider: FC = ({ children }) => {
       handlePaneCollapse,
       resizing,
       setResizing,
+      activeModal,
+      setActiveModal,
+      openTab,
     ]
   )
 

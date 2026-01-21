@@ -1,102 +1,42 @@
-import MaterialIcon, {
-  AvailableUnfilledIcon,
-} from '@/shared/components/material-icon'
-import { ReactElement, useMemo, useState } from 'react'
-import {
-  Nav,
-  NavLink,
-  TabContainer,
-  TabContent,
-  TabPane,
-} from 'react-bootstrap-5'
+import MaterialIcon from '@/shared/components/material-icon'
+
+import { Nav, NavLink, TabContainer, TabContent } from 'react-bootstrap'
+import { SettingsEntry } from '../../contexts/settings-modal-context'
+import SettingsTabPane from './settings-tab-pane'
+import BetaBadgeIcon from '@/shared/components/beta-badge-icon'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
 import { useTranslation } from 'react-i18next'
 
-export type SettingsEntry = SettingsLink | SettingsTab
-
-type SettingsTab = {
-  icon: AvailableUnfilledIcon
-  key: string
-  component: ReactElement
-  title: string
-  subtitle: string
-}
-
-type SettingsLink = {
-  key: string
-  icon: AvailableUnfilledIcon
-  href: string
-  title: string
-}
-
-export const SettingsModalBody = () => {
-  const { t } = useTranslation()
-  const settingsTabs: SettingsEntry[] = useMemo(
-    () => [
-      {
-        key: 'general',
-        title: t('general'),
-        subtitle: t('general_settings'),
-        icon: 'settings',
-        component: <div>General</div>,
-      },
-      {
-        key: 'editor',
-        title: t('editor'),
-        subtitle: t('editor_settings'),
-        icon: 'code',
-        component: <div>Editor</div>,
-      },
-      {
-        key: 'pdf',
-        title: t('pdf'),
-        subtitle: t('pdf_settings'),
-        icon: 'picture_as_pdf',
-        component: <div>PDF</div>,
-      },
-      {
-        key: 'interface',
-        title: t('interface'),
-        subtitle: t('interface_settings'),
-        icon: 'web_asset',
-        component: <div>Interface</div>,
-      },
-      {
-        key: 'account_settings',
-        title: t('account_settings'),
-        icon: 'settings',
-        href: '/user/settings',
-      },
-    ],
-    [t]
-  )
-  const [activeTab, setActiveTab] = useState<string | null | undefined>(
-    settingsTabs[0]?.key
-  )
-
+export const SettingsModalBody = ({
+  activeTab,
+  setActiveTab,
+  settingsTabs,
+}: {
+  activeTab: string | null | undefined
+  setActiveTab: (tab: string | null | undefined) => void
+  settingsTabs: SettingsEntry[]
+}) => {
   return (
     <TabContainer
       transition={false}
       onSelect={setActiveTab}
-      defaultActiveKey={activeTab ?? undefined}
+      activeKey={activeTab ?? undefined}
       id="ide-settings-tabs"
     >
       <div className="d-flex flex-row">
         <Nav
-          defaultActiveKey={settingsTabs[0]?.key}
+          activeKey={activeTab ?? undefined}
           className="d-flex flex-column ide-settings-tab-nav"
         >
           {settingsTabs.map(entry => (
             <SettingsNavLink entry={entry} key={entry.key} />
           ))}
         </Nav>
-        <TabContent>
+        <TabContent className="ide-settings-tab-content">
           {settingsTabs
-            .filter(t => 'component' in t)
-            .map(({ key, component, subtitle }) => (
-              <TabPane eventKey={key} key={key}>
-                <p className="ide-settings-tab-subtitle">{subtitle}</p>
-                <div className="ide-settings-tab-content">{component}</div>
-              </TabPane>
+            .filter(t => 'sections' in t)
+            .map(tab => (
+              <SettingsTabPane tab={tab} key={tab.key} />
             ))}
         </TabContent>
       </div>
@@ -105,6 +45,8 @@ export const SettingsModalBody = () => {
 }
 
 const SettingsNavLink = ({ entry }: { entry: SettingsEntry }) => {
+  const { t } = useTranslation()
+
   if ('href' in entry) {
     return (
       <a
@@ -140,6 +82,18 @@ const SettingsNavLink = ({ entry }: { entry: SettingsEntry }) => {
             unfilled
           />
           <span>{entry.title}</span>
+          <div className="flex-grow-1" />
+          {entry.key === 'project_notifications' && (
+            <OLTooltip
+              id="project-notifications-beta-badge"
+              description={t('email_notifications_are_currently_in_beta')}
+              overlayProps={{ placement: 'right', delay: 100 }}
+            >
+              <span>
+                <BetaBadgeIcon />
+              </span>
+            </OLTooltip>
+          )}
         </NavLink>
       </>
     )

@@ -18,7 +18,8 @@ import SettingsSyntaxValidation from './settings/settings-syntax-validation'
 import SettingsMathPreview from './settings/settings-math-preview'
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
 import { ElementType } from 'react'
-import OLForm from '@/features/ui/components/ol/ol-form'
+import OLForm from '@/shared/components/ol/ol-form'
+import SettingsNewEditor from './settings/settings-new-editor'
 
 const moduleSettings: Array<{
   import: { default: ElementType }
@@ -49,13 +50,14 @@ export default function SettingsMenu() {
         <SettingsAutoCloseBrackets />
         <SettingsSyntaxValidation />
         <SettingsMathPreview />
-        <SettingsEditorTheme />
         <SettingsOverallTheme />
+        <SettingsEditorTheme />
         <SettingsKeybindings />
         <SettingsFontSize />
         <SettingsFontFamily />
         <SettingsLineHeight />
         <SettingsPdfViewer />
+        <SettingsNewEditor />
       </OLForm>
     </>
   )

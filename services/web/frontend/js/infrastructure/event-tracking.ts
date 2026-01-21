@@ -1,7 +1,7 @@
 import sessionStorage from './session-storage'
 import getMeta from '@/utils/meta'
 
-type Segmentation = Record<
+export type Segmentation = Record<
   string,
   string | number | boolean | undefined | unknown | any // TODO: RecurlyError
 >
@@ -45,6 +45,10 @@ export function sendOnce(
 export function sendMB(key: string, segmentation: Segmentation = {}) {
   if (!segmentation.page) {
     segmentation.page = window.location.pathname
+  }
+
+  if (getMeta('ol-customerIoEnabled')) {
+    segmentation['customerio-integration'] = 'enabled'
   }
 
   sendBeacon(key, segmentation)

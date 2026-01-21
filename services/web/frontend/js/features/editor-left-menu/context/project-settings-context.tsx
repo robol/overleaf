@@ -21,12 +21,18 @@ type ProjectSettingsSetterContextValue = {
   ) => void
   setMode: (mode: UserSettings['mode']) => void
   setEditorTheme: (editorTheme: UserSettings['editorTheme']) => void
+  setEditorLightTheme: (
+    editorLightTheme: UserSettings['editorLightTheme']
+  ) => void
+  setEditorDarkTheme: (editorDarkTheme: UserSettings['editorDarkTheme']) => void
   setOverallTheme: (overallTheme: UserSettings['overallTheme']) => void
   setFontSize: (fontSize: UserSettings['fontSize']) => void
   setFontFamily: (fontFamily: UserSettings['fontFamily']) => void
   setLineHeight: (lineHeight: UserSettings['lineHeight']) => void
   setPdfViewer: (pdfViewer: UserSettings['pdfViewer']) => void
   setMathPreview: (mathPreview: UserSettings['mathPreview']) => void
+  setBreadcrumbs: (breadcrumbs: UserSettings['breadcrumbs']) => void
+  setDarkModePdf: (darkModePdf: UserSettings['darkModePdf']) => void
 }
 
 type ProjectSettingsContextValue = Partial<ProjectSettings> &
@@ -37,7 +43,9 @@ export const ProjectSettingsContext = createContext<
   ProjectSettingsContextValue | undefined
 >(undefined)
 
-export const ProjectSettingsProvider: FC = ({ children }) => {
+export const ProjectSettingsProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
   const {
     compiler,
     setCompiler,
@@ -58,6 +66,10 @@ export const ProjectSettingsProvider: FC = ({ children }) => {
     setSyntaxValidation,
     editorTheme,
     setEditorTheme,
+    editorLightTheme,
+    setEditorLightTheme,
+    editorDarkTheme,
+    setEditorDarkTheme,
     overallTheme,
     setOverallTheme,
     mode,
@@ -72,6 +84,10 @@ export const ProjectSettingsProvider: FC = ({ children }) => {
     setPdfViewer,
     mathPreview,
     setMathPreview,
+    breadcrumbs,
+    setBreadcrumbs,
+    darkModePdf,
+    setDarkModePdf,
   } = useUserWideSettings()
 
   useProjectWideSettingsSocketListener()
@@ -94,6 +110,10 @@ export const ProjectSettingsProvider: FC = ({ children }) => {
       setSyntaxValidation,
       editorTheme,
       setEditorTheme,
+      editorLightTheme,
+      setEditorLightTheme,
+      editorDarkTheme,
+      setEditorDarkTheme,
       overallTheme,
       setOverallTheme,
       mode,
@@ -108,6 +128,10 @@ export const ProjectSettingsProvider: FC = ({ children }) => {
       setPdfViewer,
       mathPreview,
       setMathPreview,
+      breadcrumbs,
+      setBreadcrumbs,
+      darkModePdf,
+      setDarkModePdf,
     }),
     [
       compiler,
@@ -126,6 +150,10 @@ export const ProjectSettingsProvider: FC = ({ children }) => {
       setSyntaxValidation,
       editorTheme,
       setEditorTheme,
+      editorLightTheme,
+      setEditorLightTheme,
+      editorDarkTheme,
+      setEditorDarkTheme,
       overallTheme,
       setOverallTheme,
       mode,
@@ -140,6 +168,10 @@ export const ProjectSettingsProvider: FC = ({ children }) => {
       setPdfViewer,
       mathPreview,
       setMathPreview,
+      breadcrumbs,
+      setBreadcrumbs,
+      darkModePdf,
+      setDarkModePdf,
     ]
   )
 

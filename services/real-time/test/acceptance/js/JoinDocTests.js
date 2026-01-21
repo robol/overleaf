@@ -9,13 +9,12 @@
  * DS102: Remove unnecessary code created because of implicit returns
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-const { expect } = require('chai')
+import { expect } from 'chai'
 
-const RealTimeClient = require('./helpers/RealTimeClient')
-const MockDocUpdaterServer = require('./helpers/MockDocUpdaterServer')
-const FixturesManager = require('./helpers/FixturesManager')
-
-const async = require('async')
+import RealTimeClient from './helpers/RealTimeClient.js'
+import MockDocUpdaterServer from './helpers/MockDocUpdaterServer.js'
+import FixturesManager from './helpers/FixturesManager.js'
+import async from 'async'
 
 describe('joinDoc', function () {
   before(function () {
@@ -89,6 +88,7 @@ describe('joinDoc', function () {
         this.version,
         this.ops,
         this.ranges,
+        'sharejs-text-ot',
       ])
     })
 
@@ -168,6 +168,7 @@ describe('joinDoc', function () {
         this.version,
         this.ops,
         this.ranges,
+        'sharejs-text-ot',
       ])
     })
 
@@ -247,6 +248,7 @@ describe('joinDoc', function () {
         this.version,
         this.ops,
         this.ranges,
+        'sharejs-text-ot',
       ])
     })
 
@@ -325,7 +327,7 @@ describe('joinDoc', function () {
     })
 
     it('should return an invalid id error', function () {
-      this.error.message.should.equal('invalid id')
+      this.error.message.should.equal('invalid Mongo ObjectId')
     })
 
     return it('should not have joined the doc room', function (done) {
@@ -408,6 +410,7 @@ describe('joinDoc', function () {
         this.version,
         this.ops,
         this.ranges,
+        'sharejs-text-ot',
       ])
     })
 
@@ -489,6 +492,7 @@ describe('joinDoc', function () {
         this.version,
         this.ops,
         this.ranges,
+        'sharejs-text-ot',
       ])
     })
 
@@ -504,7 +508,7 @@ describe('joinDoc', function () {
     })
   })
 
-  return describe('with fromVersion and options', function () {
+  describe('with fromVersion and options', function () {
     before(function (done) {
       this.fromVersion = 36
       this.options = { encodeRanges: true }
@@ -572,6 +576,7 @@ describe('joinDoc', function () {
         this.version,
         this.ops,
         this.ranges,
+        'sharejs-text-ot',
       ])
     })
 
@@ -584,6 +589,141 @@ describe('joinDoc', function () {
           return done()
         }
       )
+    })
+  })
+
+  describe('with type=history-ot', function () {
+    before(function (done) {
+      async.series(
+        [
+          cb => {
+            FixturesManager.setUpProject(
+              { privilegeLevel: 'owner' },
+              (e, { project_id: projectId, user_id: userId }) => {
+                this.project_id = projectId
+                this.user_id = userId
+                cb(e)
+              }
+            )
+          },
+
+          cb => {
+            FixturesManager.setUpDoc(
+              this.project_id,
+              {
+                lines: this.lines,
+                version: this.version,
+                ops: this.ops,
+                ranges: this.ranges,
+                type: 'history-ot',
+              },
+              (e, { doc_id: docId }) => {
+                this.doc_id = docId
+                cb(e)
+              }
+            )
+          },
+        ],
+        done
+      )
+    })
+
+    describe('when support is indicated', function () {
+      before(function (done) {
+        MockDocUpdaterServer.getDocument.resetHistory()
+        async.series(
+          [
+            cb => {
+              this.client = RealTimeClient.connect(this.project_id, cb)
+            },
+            cb =>
+              this.client.emit(
+                'joinDoc',
+                this.doc_id,
+                { supportsHistoryOT: true },
+                (error, ...rest) => {
+                  ;[...this.returnedArgs] = Array.from(rest)
+                  cb(error)
+                }
+              ),
+          ],
+          done
+        )
+      })
+
+      it('should get the doc from the doc updater', function () {
+        MockDocUpdaterServer.getDocument
+          .calledWith(this.project_id, this.doc_id, -1)
+          .should.equal(true)
+      })
+
+      it('should return the doc lines, version, ranges and ops', function () {
+        this.returnedArgs.should.deep.equal([
+          this.lines,
+          this.version,
+          this.ops,
+          this.ranges,
+          'history-ot',
+        ])
+      })
+
+      it('should have joined the doc room', function (done) {
+        RealTimeClient.getConnectedClient(
+          this.client.socket.sessionid,
+          (error, client) => {
+            if (error) return done(error)
+            expect(client.rooms).to.deep.equal([this.project_id, this.doc_id])
+            done()
+          }
+        )
+      })
+    })
+
+    describe('when support is not indicated', function () {
+      before(function (done) {
+        MockDocUpdaterServer.getDocument.resetHistory()
+        async.series(
+          [
+            cb => {
+              this.client = RealTimeClient.connect(this.project_id, cb)
+            },
+            cb =>
+              this.client.emit('joinDoc', this.doc_id, (error, ...rest) => {
+                this.error = error
+                ;[...this.returnedArgs] = Array.from(rest)
+                cb()
+              }),
+          ],
+          done
+        )
+      })
+
+      it('should get the doc from the doc updater', function () {
+        MockDocUpdaterServer.getDocument
+          .calledWith(this.project_id, this.doc_id, -1)
+          .should.equal(true)
+      })
+
+      it('should return an error', function () {
+        expect(this.error).to.deep.equal({
+          message: 'client does not support history-ot',
+        })
+      })
+
+      it('should not return the doc lines, version, ranges and ops', function () {
+        this.returnedArgs.should.deep.equal([])
+      })
+
+      it('should leave the doc room again', function (done) {
+        RealTimeClient.getConnectedClient(
+          this.client.socket.sessionid,
+          (error, client) => {
+            if (error) return done(error)
+            expect(client.rooms).to.deep.equal([this.project_id])
+            done()
+          }
+        )
+      })
     })
   })
 })

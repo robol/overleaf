@@ -238,22 +238,6 @@ export function getFileMetadataSnapshot(req, res, next) {
   )
 }
 
-export function getMostRecentChunk(req, res, next) {
-  const { project_id: projectId } = req.params
-  WebApiManager.getHistoryId(projectId, (error, historyId) => {
-    if (error) return next(OError.tag(error))
-
-    HistoryStoreManager.getMostRecentChunk(
-      projectId,
-      historyId,
-      (err, data) => {
-        if (err) return next(OError.tag(err))
-        res.json(data)
-      }
-    )
-  })
-}
-
 export function getLatestSnapshot(req, res, next) {
   const { project_id: projectId } = req.params
   WebApiManager.getHistoryId(projectId, (error, historyId) => {
@@ -267,25 +251,6 @@ export function getLatestSnapshot(req, res, next) {
         }
         const { snapshot, version } = details
         res.json({ snapshot: snapshot.toRaw(), version })
-      }
-    )
-  })
-}
-
-export function getChangesSince(req, res, next) {
-  const { project_id: projectId } = req.params
-  const { since } = req.query
-  WebApiManager.getHistoryId(projectId, (error, historyId) => {
-    if (error) return next(OError.tag(error))
-    SnapshotManager.getChangesSince(
-      projectId,
-      historyId,
-      since,
-      (error, changes) => {
-        if (error != null) {
-          return next(error)
-        }
-        res.json(changes.map(c => c.toRaw()))
       }
     )
   })
@@ -604,9 +569,7 @@ export function deleteProject(req, res, next) {
           if (err) {
             return next(err)
           }
-          // The third parameter to the following call is the error. Calling it
-          // with null will remove any failure record for this project.
-          ErrorRecorder.record(projectId, 0, null, err => {
+          ErrorRecorder.clearError(projectId, err => {
             if (err) {
               return next(err)
             }

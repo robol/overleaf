@@ -33,6 +33,7 @@ import {
   VerbCtrlSeq,
   LstInlineCtrlSeq,
   IncludeGraphicsCtrlSeq,
+  IncludeSvgCtrlSeq,
   CaptionCtrlSeq,
   DefCtrlSeq,
   LetCtrlSeq,
@@ -65,6 +66,7 @@ import {
   SubParagraphCtrlSeq,
   InputCtrlSeq,
   IncludeCtrlSeq,
+  SubfileCtrlSeq,
   ItemCtrlSeq,
   NewTheoremCtrlSeq,
   TheoremStyleCtrlSeq,
@@ -99,6 +101,8 @@ import {
   EmphasisCtrlSeq,
   UnderlineCtrlSeq,
   SetLengthCtrlSeq,
+  FootnoteCtrlSeq,
+  EndnoteCtrlSeq,
 } from './latex.terms.mjs'
 
 const MAX_ARGUMENT_LOOKAHEAD = 100
@@ -556,6 +560,7 @@ const otherKnowncommands = {
   '\\verb': VerbCtrlSeq,
   '\\lstinline': LstInlineCtrlSeq,
   '\\includegraphics': IncludeGraphicsCtrlSeq,
+  '\\includesvg': IncludeSvgCtrlSeq,
   '\\caption': CaptionCtrlSeq,
   '\\def': DefCtrlSeq,
   '\\let': LetCtrlSeq,
@@ -578,6 +583,7 @@ const otherKnowncommands = {
   '\\subparagraph': SubParagraphCtrlSeq,
   '\\input': InputCtrlSeq,
   '\\include': IncludeCtrlSeq,
+  '\\subfile': SubfileCtrlSeq,
   '\\item': ItemCtrlSeq,
   '\\centering': CenteringCtrlSeq,
   '\\newtheorem': NewTheoremCtrlSeq,
@@ -605,6 +611,8 @@ const otherKnowncommands = {
   '\\emph': EmphasisCtrlSeq,
   '\\underline': UnderlineCtrlSeq,
   '\\setlength': SetLengthCtrlSeq,
+  '\\footnote': FootnoteCtrlSeq,
+  '\\endnote': EndnoteCtrlSeq,
 }
 // specializer for control sequences
 // return new tokens for specific control sequences
@@ -692,6 +700,8 @@ const equationArrayEnvNames = new Set([
   'rcases*',
   'IEEEeqnarray',
   'IEEEeqnarray*',
+  'subeqnarray',
+  'subeqnarray*',
 ])
 
 const verbatimEnvNames = new Set([

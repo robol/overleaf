@@ -1,12 +1,11 @@
 // @ts-check
 
 import Settings from '@overleaf/settings'
-import { Joi, validate } from '../../infrastructure/Validation.js'
-import { RateLimiter } from '../../infrastructure/RateLimiter.js'
-import AuthenticationController from '../Authentication/AuthenticationController.js'
-import AuthorizationMiddleware from '../Authorization/AuthorizationMiddleware.js'
-import RateLimiterMiddleware from '../Security/RateLimiterMiddleware.js'
-import HistoryController from './HistoryController.js'
+import { RateLimiter } from '../../infrastructure/RateLimiter.mjs'
+import AuthenticationController from '../Authentication/AuthenticationController.mjs'
+import AuthorizationMiddleware from '../Authorization/AuthorizationMiddleware.mjs'
+import RateLimiterMiddleware from '../Security/RateLimiterMiddleware.mjs'
+import HistoryController from './HistoryController.mjs'
 
 const rateLimiters = {
   downloadProjectRevision: new RateLimiter('download-project-revision', {
@@ -29,30 +28,12 @@ function apply(webRouter, privateApiRouter) {
 
   webRouter.head(
     '/project/:project_id/blob/:hash',
-    validate({
-      params: Joi.object({
-        project_id: Joi.objectId().required(),
-        hash: Joi.string().required().hex().length(40),
-      }),
-      query: Joi.object({
-        fallback: Joi.objectId().optional(),
-      }),
-    }),
     RateLimiterMiddleware.rateLimit(rateLimiters.getProjectBlob),
     AuthorizationMiddleware.ensureUserCanReadProject,
     HistoryController.headBlob
   )
   webRouter.get(
     '/project/:project_id/blob/:hash',
-    validate({
-      params: Joi.object({
-        project_id: Joi.objectId().required(),
-        hash: Joi.string().required().hex().length(40),
-      }),
-      query: Joi.object({
-        fallback: Joi.objectId().optional(),
-      }),
-    }),
     RateLimiterMiddleware.rateLimit(rateLimiters.getProjectBlob),
     AuthorizationMiddleware.ensureUserCanReadProject,
     HistoryController.getBlob
@@ -153,13 +134,13 @@ function apply(webRouter, privateApiRouter) {
     '/project/:project_id/latest/history',
     AuthorizationMiddleware.blockRestrictedUserFromProject,
     AuthorizationMiddleware.ensureUserCanReadProject,
-    HistoryController.proxyToHistoryApi
+    HistoryController.getLatestHistory
   )
   webRouter.get(
     '/project/:project_id/changes',
     AuthorizationMiddleware.blockRestrictedUserFromProject,
     AuthorizationMiddleware.ensureUserCanReadProject,
-    HistoryController.proxyToHistoryApi
+    HistoryController.getChanges
   )
 }
 

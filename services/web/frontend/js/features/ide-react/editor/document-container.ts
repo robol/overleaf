@@ -2,7 +2,7 @@
 // Migrated from services/web/frontend/js/ide/editor/Document.js
 
 import RangesTracker from '@overleaf/ranges-tracker'
-import { ShareJsDoc } from './share-js-doc'
+import { OTType, ShareJsDoc } from './share-js-doc'
 import { debugConsole } from '@/utils/debugging'
 import { Socket } from '@/features/ide-react/connection/types/socket'
 import { IdeEventEmitter } from '@/features/ide-react/create-ide-event-emitter'
@@ -18,6 +18,7 @@ import {
 import {
   isCommentOperation,
   isDeleteOperation,
+  isEditOperation,
   isInsertOperation,
 } from '@/utils/operations'
 import { decodeUtf8 } from '@/utils/decode-utf8'
@@ -27,6 +28,11 @@ import {
 } from '@/features/ide-react/editor/types/document'
 import { ThreadId } from '../../../../../types/review-panel/review-panel'
 import getMeta from '@/utils/meta'
+import OError from '@overleaf/o-error'
+import {
+  HistoryOTShareDoc,
+  ShareLatexOTShareDoc,
+} from '../../../../../types/share-doc'
 
 const MAX_PENDING_OP_SIZE = 64
 
@@ -119,6 +125,27 @@ export class DocumentContainer extends EventEmitter {
     this.bindToSocketEvents()
   }
 
+  get shareDoc() {
+    if (!this.doc) {
+      throw new Error('Missing ShareJSDoc')
+    }
+    if (!this.doc._doc) {
+      throw new Error('Missing ShareJS Doc')
+    }
+    return this.doc._doc as HistoryOTShareDoc | ShareLatexOTShareDoc
+  }
+
+  isHistoryOT() {
+    return this.shareDoc.otType === 'history-ot'
+  }
+
+  get historyOTShareDoc() {
+    if (!this.isHistoryOT()) {
+      throw new Error('shareDoc is not historyOT')
+    }
+    return this.shareDoc as HistoryOTShareDoc
+  }
+
   attachToCM6(cm6: EditorFacade) {
     this.cm6 = cm6
     if (this.doc) {
@@ -194,9 +221,13 @@ export class DocumentContainer extends EventEmitter {
     return this.doc?.hasBufferedOps()
   }
 
-  setTrackingChanges(track_changes: boolean) {
+  setTrackChangesUserId(userId: string | null) {
+    this.track_changes_as = userId
     if (this.doc) {
-      this.doc.track_changes = track_changes
+      this.doc.setTrackChangesUserId(userId)
+    }
+    if (this.cm6) {
+      this.cm6.setTrackChangesUserId(userId)
     }
   }
 
@@ -446,16 +477,36 @@ export class DocumentContainer extends EventEmitter {
         'joinDoc',
         this.doc_id,
         this.doc.getVersion(),
-        { encodeRanges: true, age: this.doc.getTimeSinceLastServerActivity() },
-        (error, docLines, version, updates, ranges) => {
+        {
+          encodeRanges: true,
+          age: this.doc.getTimeSinceLastServerActivity(),
+          supportsHistoryOT: true,
+        },
+        (
+          error,
+          docLines,
+          version,
+          updates,
+          ranges,
+          type = 'sharejs-text-ot'
+        ) => {
           if (error) {
             callback?.(error)
             return
           }
           this.joined = true
           this.doc?.catchUp(updates)
-          this.decodeRanges(ranges)
-          this.catchUpRanges(ranges?.changes, ranges?.comments)
+          if (this.doc?.getType() !== type) {
+            // TODO(24596): page reload after checking for pending ops?
+            throw new OError('ot type mismatch', {
+              got: type,
+              want: this.doc?.getType(),
+            })
+          }
+          if (type === 'sharejs-text-ot') {
+            this.decodeRanges(ranges)
+            this.catchUpRanges(ranges?.changes, ranges?.comments)
+          }
           callback?.()
         }
       )
@@ -463,8 +514,18 @@ export class DocumentContainer extends EventEmitter {
       this.socket.emit(
         'joinDoc',
         this.doc_id,
-        { encodeRanges: true },
-        (error, docLines, version, updates, ranges) => {
+        {
+          encodeRanges: true,
+          supportsHistoryOT: true,
+        },
+        (
+          error,
+          docLines,
+          version,
+          updates,
+          ranges,
+          type: OTType = 'sharejs-text-ot'
+        ) => {
           if (error) {
             callback?.(error)
             return
@@ -476,9 +537,12 @@ export class DocumentContainer extends EventEmitter {
             version,
             this.socket,
             this.globalEditorWatchdogManager,
-            this.ideEventEmitter
+            this.ideEventEmitter,
+            type
           )
-          this.decodeRanges(ranges)
+          if (type === 'sharejs-text-ot') {
+            this.decodeRanges(ranges)
+          }
           this.ranges = new RangesTracker(ranges?.changes, ranges?.comments)
           this.bindToShareJsDocEvents()
           callback?.()
@@ -560,7 +624,7 @@ export class DocumentContainer extends EventEmitter {
     this.doc.on('remoteop', (...ops: AnyOperation[]) => {
       return this.trigger('remoteop', ...ops)
     })
-    this.doc.on('op:sent', (op: AnyOperation) => {
+    this.doc.on('op:sent', () => {
       return this.trigger('op:sent')
     })
     this.doc.on('op:acknowledged', (op: AnyOperation) => {
@@ -570,24 +634,33 @@ export class DocumentContainer extends EventEmitter {
       })
       return this.trigger('op:acknowledged')
     })
-    this.doc.on('op:timeout', (op: AnyOperation) => {
+    this.doc.on('op:timeout', () => {
       this.trigger('op:timeout')
       return this.onError(new Error('op timed out'))
+    })
+    this.doc.on('ranges:dirty', (...args) => {
+      return this.trigger('ranges:dirty', ...args)
     })
 
     let docChangedTimeout: number | null = null
     this.doc.on(
       'change',
       (ops: AnyOperation[], oldSnapshot: any, msg: Message) => {
-        this.applyOpsToRanges(ops, msg)
+        if (this.getType() === 'sharejs-text-ot') {
+          this.applyOpsToRanges(ops, msg)
+        }
         if (docChangedTimeout) {
           window.clearTimeout(docChangedTimeout)
         }
         docChangedTimeout = window.setTimeout(() => {
-          window.dispatchEvent(
-            new CustomEvent('doc:changed', { detail: { id: this.doc_id } })
-          )
-          this.ideEventEmitter.emit('doc:changed', { doc_id: this.doc_id })
+          if (ops.some(isEditOperation)) {
+            window.dispatchEvent(
+              new CustomEvent('doc:changed', { detail: { id: this.doc_id } })
+            )
+            this.ideEventEmitter.emit('doc:changed', {
+              doc_id: this.doc_id,
+            })
+          }
         }, 50)
       }
     )

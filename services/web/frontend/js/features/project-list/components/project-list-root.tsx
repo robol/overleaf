@@ -13,11 +13,14 @@ import SystemMessages from '../../../shared/components/system-messages'
 import withErrorBoundary from '../../../infrastructure/error-boundary'
 import { GenericErrorBoundaryFallback } from '@/shared/components/generic-error-boundary-fallback'
 import getMeta from '@/utils/meta'
-import DefaultNavbar from '@/features/ui/components/bootstrap-5/navbar/default-navbar'
-import Footer from '@/features/ui/components/bootstrap-5/footer/footer'
+import DefaultNavbar from '@/shared/components/navbar/default-navbar'
+import Footer from '@/shared/components/footer/footer'
 import WelcomePageContent from '@/features/project-list/components/welcome-page-content'
 import { ProjectListDsNav } from '@/features/project-list/components/project-list-ds-nav'
 import { DsNavStyleProvider } from '@/features/project-list/components/use-is-ds-nav'
+import CookieBanner from '@/shared/components/cookie-banner'
+import useThemedPage from '@/shared/hooks/use-themed-page'
+import { UserSettingsProvider } from '@/shared/context/user-settings-context'
 
 function ProjectListRoot() {
   const { isReady } = useWaitForI18n()
@@ -34,7 +37,9 @@ export function ProjectListRootInner() {
     <ProjectListProvider>
       <ColorPickerProvider>
         <SplitTestProvider>
-          <ProjectListPageContent />
+          <UserSettingsProvider>
+            <ProjectListPageContent />
+          </UserSettingsProvider>
         </SplitTestProvider>
       </ColorPickerProvider>
     </ProjectListProvider>
@@ -49,8 +54,8 @@ function DefaultNavbarAndFooter({ children }: { children: ReactNode }) {
     <>
       <DefaultNavbar {...navbarProps} />
       <main
-        id="main-content"
         className="content content-alt project-list-react"
+        aria-labelledby="main-content"
       >
         {children}
       </main>
@@ -69,6 +74,7 @@ function DefaultPageContentWrapper({ children }: { children: ReactNode }) {
 }
 
 function ProjectListPageContent() {
+  useThemedPage('themed-project-dashboard')
   const { totalProjectsCount, isLoading, loadProgress } =
     useProjectListContext()
 
@@ -79,22 +85,30 @@ function ProjectListPageContent() {
   const { t } = useTranslation()
 
   if (isLoading) {
-    return <LoadingBranded loadProgress={loadProgress} label={t('loading')} />
+    const loadingComponent = (
+      <LoadingBranded loadProgress={loadProgress} label={t('loading')} />
+    )
+
+    return loadingComponent
   }
 
   if (totalProjectsCount === 0) {
     return (
-      <DefaultPageContentWrapper>
-        <WelcomePageContent />
-      </DefaultPageContentWrapper>
-    )
-  } else {
-    return (
-      <DsNavStyleProvider>
-        <ProjectListDsNav />
-      </DsNavStyleProvider>
+      <>
+        <DefaultPageContentWrapper>
+          <WelcomePageContent />
+        </DefaultPageContentWrapper>
+        <CookieBanner />
+      </>
     )
   }
+  return (
+    <DsNavStyleProvider>
+      <ProjectListDsNav />
+    </DsNavStyleProvider>
+  )
 }
 
-export default withErrorBoundary(ProjectListRoot, GenericErrorBoundaryFallback)
+export default withErrorBoundary(ProjectListRoot, () => (
+  <GenericErrorBoundaryFallback />
+))

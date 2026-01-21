@@ -1,6 +1,6 @@
 import minimist from 'minimist'
-import { db } from '../../../app/src/infrastructure/mongodb.js'
-import UserRegistrationHandler from '../../../app/src/Features/User/UserRegistrationHandler.js'
+import { db } from '../../../app/src/infrastructure/mongodb.mjs'
+import UserRegistrationHandler from '../../../app/src/Features/User/UserRegistrationHandler.mjs'
 import { fileURLToPath } from 'url'
 
 const filename = fileURLToPath(import.meta.url)
@@ -47,4 +47,14 @@ Please visit the following URL to set a password for ${email} and log in:
       }
     )
   })
+}
+
+if (filename === process.argv[1]) {
+  try {
+    await main()
+    process.exit(0)
+  } catch (error) {
+    console.error({ error })
+    process.exit(1)
+  }
 }

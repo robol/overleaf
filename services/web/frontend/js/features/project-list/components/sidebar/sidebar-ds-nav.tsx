@@ -1,22 +1,23 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import classnames from 'classnames'
 import { Question, User } from '@phosphor-icons/react'
 import NewProjectButton from '../new-project-button'
 import SidebarFilters from './sidebar-filters'
 import AddAffiliation, { useAddAffiliation } from '../add-affiliation'
 import { usePersistedResize } from '@/shared/hooks/use-resize'
-import { Dropdown } from 'react-bootstrap-5'
+import { Dropdown } from 'react-bootstrap'
 import getMeta from '@/utils/meta'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
-import { useTranslation } from 'react-i18next'
-import { NavDropdownMenuItems } from '@/features/ui/components/bootstrap-5/navbar/nav-dropdown-from-data'
-import { NavbarDropdownItemData } from '@/features/ui/components/types/navbar'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
+import { NavDropdownMenuItems } from '@/shared/components/navbar/nav-dropdown-from-data'
+import { NavbarDropdownItemData } from '@/shared/components/types/navbar'
 import { useContactUsModal } from '@/shared/hooks/use-contact-us-modal'
 import { UserProvider } from '@/shared/context/user-context'
-import { AccountMenuItems } from '@/features/ui/components/bootstrap-5/navbar/account-menu-items'
+import { AccountMenuItems } from '@/shared/components/navbar/account-menu-items'
 import { useScrolled } from '@/features/project-list/components/sidebar/use-scroll'
 import { useSendProjectListMB } from '@/features/project-list/components/project-list-events'
 import { SurveyWidgetDsNav } from '@/features/project-list/components/survey-widget-ds-nav'
+import { useFeatureFlag } from '@/shared/context/split-test-context'
 
 function SidebarDsNav() {
   const { t } = useTranslation()
@@ -33,9 +34,11 @@ function SidebarDsNav() {
   const sendMB = useSendProjectListMB()
   const { sessionUser, showSubscriptionLink, items } = getMeta('ol-navbar')
   const helpItem = items.find(
-    item => item.text === 'help'
+    item => item.text === 'help_and_resources'
   ) as NavbarDropdownItemData
   const { containerRef, scrolledUp, scrolledDown } = useScrolled()
+  const themedDsNav = useFeatureFlag('themed-project-dashboard')
+
   return (
     <div
       className="project-list-sidebar-wrapper-react d-none d-md-flex"
@@ -45,15 +48,24 @@ function SidebarDsNav() {
         },
       })}
     >
-      <NewProjectButton
-        id="new-project-button-sidebar"
-        className={scrolledDown ? 'show-shadow' : undefined}
-      />
-      <div className="project-list-sidebar-scroll" ref={containerRef}>
-        <SidebarFilters />
-        {showAddAffiliationWidget && <hr />}
-        <AddAffiliation />
-      </div>
+      <nav
+        className="flex-grow flex-shrink"
+        aria-label={t('project_categories_tags')}
+      >
+        <NewProjectButton
+          id="new-project-button-sidebar"
+          className={scrolledDown ? 'show-shadow' : undefined}
+        />
+        <div
+          className="project-list-sidebar-scroll"
+          ref={containerRef}
+          data-testid="project-list-sidebar-scroll"
+        >
+          <SidebarFilters />
+          {showAddAffiliationWidget && <hr />}
+          <AddAffiliation />
+        </div>
+      </nav>
       <div
         className={classnames(
           'ds-nav-sidebar-lower',
@@ -63,7 +75,10 @@ function SidebarDsNav() {
         <div className="project-list-sidebar-survey-wrapper">
           <SurveyWidgetDsNav />
         </div>
-        <div className="d-flex gap-3 mb-2">
+        <nav
+          className="d-flex flex-row gap-3 mb-2"
+          aria-label={t('account_help')}
+        >
           {helpItem && (
             <Dropdown
               className="ds-nav-icon-dropdown"
@@ -73,6 +88,7 @@ function SidebarDsNav() {
                   sendMB('menu-expand', { item: 'help', location: 'sidebar' })
                 }
               }}
+              role="menu"
             >
               <Dropdown.Toggle role="menuitem" aria-label={t('help')}>
                 <OLTooltip
@@ -80,8 +96,8 @@ function SidebarDsNav() {
                   id="help-icon"
                   overlayProps={{
                     placement: 'top',
-                    show: showHelpDropdown ? false : undefined,
                   }}
+                  hidden={showHelpDropdown}
                 >
                   <div>
                     <Question size={24} />
@@ -117,6 +133,7 @@ function SidebarDsNav() {
                     })
                   }
                 }}
+                role="menu"
               >
                 <Dropdown.Toggle role="menuitem" aria-label={t('Account')}>
                   <OLTooltip
@@ -124,8 +141,8 @@ function SidebarDsNav() {
                     id="open-account"
                     overlayProps={{
                       placement: 'top',
-                      show: showAccountDropdown ? false : undefined,
                     }}
+                    hidden={showAccountDropdown}
                   >
                     <div>
                       <User size={24} />
@@ -145,21 +162,16 @@ function SidebarDsNav() {
                   <AccountMenuItems
                     sessionUser={sessionUser}
                     showSubscriptionLink={showSubscriptionLink}
+                    showThemeToggle={themedDsNav}
                   />
                 </Dropdown.Menu>
               </Dropdown>
               <UserProvider>{contactUsModal}</UserProvider>
             </>
           )}
-        </div>
-        <div className="ds-nav-ds-link">
-          <a
-            target="_blank"
-            href="https://www.digital-science.com/"
-            rel="noopener"
-          >
-            Digital Science
-          </a>
+        </nav>
+        <div className="ds-nav-ds-name" translate="no">
+          <span>Digital Science</span>
         </div>
       </div>
       <div

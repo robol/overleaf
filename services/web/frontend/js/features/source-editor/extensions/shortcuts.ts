@@ -1,4 +1,4 @@
-import { EditorView, keymap } from '@codemirror/view'
+import { keymap } from '@codemirror/view'
 import { Prec } from '@codemirror/state'
 import { indentMore } from '../commands/indent'
 import {
@@ -18,39 +18,24 @@ import {
 import { changeCase, duplicateSelection } from '../commands/ranges'
 import { selectNextOccurrence, selectPrevOccurrence } from '../commands/select'
 import { cloneSelectionVertically } from '../commands/cursor'
-import { dispatchEditorEvent } from './changes/change-manager'
 import {
   deleteToVisualLineEnd,
   deleteToVisualLineStart,
 } from './visual-line-selection'
-import { isSplitTestEnabled } from '@/utils/splitTestUtils'
 import { emitShortcutEvent } from '@/features/source-editor/extensions/toolbar/utils/analytics'
 
 const toggleReviewPanel = () => {
-  if (isSplitTestEnabled('review-panel-redesign')) {
-    window.dispatchEvent(new Event('ui.toggle-review-panel'))
-  } else {
-    dispatchEditorEvent('toggle-review-panel')
-  }
-
+  window.dispatchEvent(new Event('ui.toggle-review-panel'))
   return true
 }
 
-const addNewCommentFromKbdShortcut = (view: EditorView) => {
-  if (isSplitTestEnabled('review-panel-redesign')) {
-    window.dispatchEvent(new Event('add-new-review-comment'))
-  } else {
-    dispatchEditorEvent('add-new-comment')
-  }
+const addNewCommentFromKbdShortcut = () => {
+  window.dispatchEvent(new Event('add-new-review-comment'))
   return true
 }
 
 const toggleTrackChangesFromKbdShortcut = () => {
-  if (isSplitTestEnabled('review-panel-redesign')) {
-    window.dispatchEvent(new Event('toggle-track-changes'))
-  } else {
-    dispatchEditorEvent('toggle-track-changes')
-  }
+  window.dispatchEvent(new Event('toggle-track-changes'))
   return true
 }
 
@@ -61,11 +46,11 @@ export const shortcuts = Prec.high(
   keymap.of([
     {
       key: 'Tab',
-      run: indentMore,
+      run: indentMore, // note: not using indentWithTab as the user may want to insert tab spaces within a line
     },
     {
       key: 'Shift-Tab',
-      run: indentLess,
+      run: indentLess, // note: not using indentWithTab as the user may want to insert tab spaces within a line
     },
     {
       key: 'Mod-y',

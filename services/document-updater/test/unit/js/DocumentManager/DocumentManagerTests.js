@@ -49,12 +49,16 @@ describe('DocumentManager', function () {
         applyUpdate: sinon.stub().resolves(),
       },
     }
+    this.HistoryOTUpdateManager = {
+      applyUpdate: sinon.stub().resolves(),
+    }
     this.RangesManager = {
       acceptChanges: sinon.stub(),
       deleteComment: sinon.stub(),
     }
     this.Settings = {
       max_doc_length: 2 * 1024 * 1024, // 2mb
+      maxUnflushedAgeMs: 300 * 1000, // 5 minutes
     }
 
     this.DocumentManager = SandboxedModule.require(modulePath, {
@@ -66,6 +70,7 @@ describe('DocumentManager', function () {
         './Metrics': this.Metrics,
         './DiffCodec': this.DiffCodec,
         './UpdateManager': this.UpdateManager,
+        './HistoryOTUpdateManager': this.HistoryOTUpdateManager,
         './RangesManager': this.RangesManager,
         './Errors': Errors,
         '@overleaf/settings': this.Settings,
@@ -222,6 +227,7 @@ describe('DocumentManager', function () {
           ranges: this.ranges,
           pathname: this.pathname,
           projectHistoryId: this.projectHistoryId,
+          type: 'sharejs-text-ot',
         })
         this.RedisManager.promises.getPreviousDocOps.resolves(this.ops)
         this.result = await this.DocumentManager.promises.getDocAndRecentOps(
@@ -251,6 +257,7 @@ describe('DocumentManager', function () {
           ranges: this.ranges,
           pathname: this.pathname,
           projectHistoryId: this.projectHistoryId,
+          type: 'sharejs-text-ot',
         })
       })
     })
@@ -263,6 +270,7 @@ describe('DocumentManager', function () {
           ranges: this.ranges,
           pathname: this.pathname,
           projectHistoryId: this.projectHistoryId,
+          type: 'sharejs-text-ot',
         })
         this.RedisManager.promises.getPreviousDocOps.resolves(this.ops)
         this.result = await this.DocumentManager.promises.getDocAndRecentOps(
@@ -290,6 +298,7 @@ describe('DocumentManager', function () {
           ranges: this.ranges,
           pathname: this.pathname,
           projectHistoryId: this.projectHistoryId,
+          type: 'sharejs-text-ot',
         })
       })
     })
@@ -333,6 +342,7 @@ describe('DocumentManager', function () {
           unflushedTime: this.unflushedTime,
           alreadyLoaded: true,
           historyRangesSupport: this.historyRangesSupport,
+          type: 'sharejs-text-ot',
         })
       })
     })
@@ -400,6 +410,7 @@ describe('DocumentManager', function () {
           unflushedTime: null,
           alreadyLoaded: false,
           historyRangesSupport: this.historyRangesSupport,
+          type: 'sharejs-text-ot',
         })
       })
     })
@@ -860,9 +871,7 @@ describe('DocumentManager', function () {
             this.doc_id,
             'mock-comment-id-1'
           )
-        ).to.eventually.deep.equal({
-          comment: { id: 'mock-comment-id-1' },
-        })
+        ).to.eventually.deep.equal({ id: 'mock-comment-id-1' })
       })
 
       it("should get the document's current ranges", function () {
@@ -1022,7 +1031,7 @@ describe('DocumentManager', function () {
             ranges: this.ranges,
             projectHistoryId: this.projectHistoryId,
             pathname: this.pathname,
-            unflushedTime: Date.now() - 1e9,
+            unflushedTime: Date.now() - 2 * this.Settings.maxUnflushedAgeMs, // document is older than max unflushed age
             alreadyLoaded: true,
           })
           this.result = await this.DocumentManager.promises.getDocAndFlushIfOld(
@@ -1058,7 +1067,7 @@ describe('DocumentManager', function () {
             version: this.version,
             ranges: this.ranges,
             pathname: this.pathname,
-            unflushedTime: Date.now() - 100,
+            unflushedTime: Date.now() - 0.5 * this.Settings.maxUnflushedAgeMs, // document is not old enough to trigger flush
             alreadyLoaded: true,
           })
           this.result = await this.DocumentManager.promises.getDocAndFlushIfOld(

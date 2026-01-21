@@ -1,6 +1,6 @@
 // @ts-check
 import { backupPersistor, projectBlobsBucket } from './backupPersistor.mjs'
-import { GLOBAL_BLOBS, makeProjectKey } from './blob_store/index.js'
+import { GLOBAL_BLOBS, makeProjectKey, BlobStore } from './blob_store/index.js'
 import Stream from 'node:stream'
 import fs from 'node:fs'
 import Crypto from 'node:crypto'
@@ -11,11 +11,16 @@ import logger from '@overleaf/logger/logging-manager.js'
 import { AlreadyWrittenError } from '@overleaf/object-persistor/src/Errors.js'
 import metrics from '@overleaf/metrics'
 import zLib from 'node:zlib'
+import Path from 'node:path'
 
 const HIGHWATER_MARK = 1024 * 1024
 
 /**
  * @typedef {import("overleaf-editor-core").Blob} Blob
+ */
+
+/**
+ * @typedef {import("@overleaf/object-persistor/src/PerProjectEncryptedS3Persistor").CachedPerProjectEncryptedS3Persistor} CachedPerProjectEncryptedS3Persistor
  */
 
 /**
@@ -29,6 +34,34 @@ function recordBackupConclusion(status, reason = 'none') {
 }
 
 /**
+ * Downloads a blob to a specified directory
+ *
+ * @param {string} historyId - The history ID of the project the blob belongs to
+ * @param {Blob} blob - The blob to download
+ * @param {string} tmpDir - The directory path where the blob will be downloaded
+ * @returns {Promise<string>} The full path where the blob was downloaded
+ */
+export async function downloadBlobToDir(historyId, blob, tmpDir) {
+  const blobStore = new BlobStore(historyId)
+  const blobHash = blob.getHash()
+  const src = await blobStore.getStream(blobHash)
+  const filePath = Path.join(tmpDir, `${historyId}-${blobHash}`)
+  try {
+    const dst = fs.createWriteStream(filePath, {
+      highWaterMark: HIGHWATER_MARK,
+      flags: 'wx',
+    })
+    await Stream.promises.pipeline(src, dst)
+    return filePath
+  } catch (error) {
+    try {
+      await fs.promises.unlink(filePath)
+    } catch {}
+    throw error
+  }
+}
+
+/**
  * Performs the actual upload of the blob to the backup storage.
  *
  * @param {string} historyId - The history ID of the project the blob belongs to
@@ -36,12 +69,17 @@ function recordBackupConclusion(status, reason = 'none') {
  * @param {string} path - The path to the file to upload (should have been stored on disk already)
  * @return {Promise<void>}
  */
-export async function uploadBlobToBackup(historyId, blob, path) {
-  const md5 = Crypto.createHash('md5')
+export async function uploadBlobToBackup(historyId, blob, path, persistor) {
   const filePathCompressed = path + '.gz'
   let backupSource
   let contentEncoding
   let size
+  const timer = setTimeout(function () {
+    logger.warn(
+      { historyId, blob, path, size },
+      'blob upload still active after 1 minute'
+    )
+  }, 60 * 1000)
   try {
     if (blob.getStringLength()) {
       backupSource = filePathCompressed
@@ -53,7 +91,6 @@ export async function uploadBlobToBackup(historyId, blob, path) {
         async function* (source) {
           for await (const chunk of source) {
             size += chunk.byteLength
-            md5.update(chunk)
             yield chunk
           }
         },
@@ -64,13 +101,8 @@ export async function uploadBlobToBackup(historyId, blob, path) {
     } else {
       backupSource = path
       size = blob.getByteLength()
-      await Stream.promises.pipeline(
-        fs.createReadStream(path, { highWaterMark: HIGHWATER_MARK }),
-        md5
-      )
     }
     const key = makeProjectKey(historyId, blob.getHash())
-    const persistor = await backupPersistor.forProject(projectBlobsBucket, key)
     await persistor.sendStream(
       projectBlobsBucket,
       key,
@@ -79,11 +111,11 @@ export async function uploadBlobToBackup(historyId, blob, path) {
         contentEncoding,
         contentType: 'application/octet-stream',
         contentLength: size,
-        sourceMd5: md5.digest('hex'),
         ifNoneMatch: '*',
       }
     )
   } finally {
+    clearTimeout(timer)
     if (backupSource === filePathCompressed) {
       try {
         await fs.promises.rm(filePathCompressed, { force: true })
@@ -119,7 +151,7 @@ async function _convertLegacyHistoryIdToProjectId(historyId) {
  * @param {string} hash
  * @return {Promise<void>}
  */
-async function storeBlobBackup(projectId, hash) {
+export async function storeBlobBackup(projectId, hash) {
   await backedUpBlobs.updateOne(
     { _id: new ObjectId(projectId) },
     { $addToSet: { blobs: new Binary(Buffer.from(hash, 'hex')) } },
@@ -135,7 +167,7 @@ async function storeBlobBackup(projectId, hash) {
  * @return {Promise<*>}
  * @private
  */
-export async function _blobIsBackedUp(projectId, hash) {
+export async function blobIsBackedUp(projectId, hash) {
   const blobs = await backedUpBlobs.findOne(
     {
       _id: new ObjectId(projectId),
@@ -152,9 +184,10 @@ export async function _blobIsBackedUp(projectId, hash) {
  * @param {string} historyId - history ID for a project (can be postgres format or mongo format)
  * @param {Blob} blob - The blob that is being backed up
  * @param {string} tmpPath - The path to a temporary file storing the contents of the blob.
- * @return {Promise<void>}
+ * @param {CachedPerProjectEncryptedS3Persistor} [persistor] - The persistor to use (optional)
+ * @return {Promise<string|void>}
  */
-export async function backupBlob(historyId, blob, tmpPath) {
+export async function backupBlob(historyId, blob, tmpPath, persistor) {
   const hash = blob.getHash()
 
   let projectId = historyId
@@ -167,26 +200,38 @@ export async function backupBlob(historyId, blob, tmpPath) {
   if (globalBlob && !globalBlob.demoted) {
     recordBackupConclusion('skipped', 'global')
     logger.debug({ projectId, hash }, 'Blob is global - skipping backup')
-    return
+    return 'global'
   }
 
   try {
-    if (await _blobIsBackedUp(projectId, hash)) {
+    if (await blobIsBackedUp(projectId, hash)) {
       recordBackupConclusion('skipped', 'already_backed_up')
       logger.debug(
         { projectId, hash },
         'Blob already backed up - skipping backup'
       )
-      return
+      return 'already-recorded'
     }
   } catch (error) {
     logger.warn({ error }, 'Failed to check if blob is backed up')
     // We'll try anyway - we'll catch the error if it was backed up
   }
-
+  // If we weren't passed a persistor for this project, create one.
+  // This will fetch the key from AWS, so it's prefereable to use
+  // the same persistor for all blobs in a project where possible.
+  if (!persistor) {
+    logger.debug(
+      { historyId, hash },
+      'warning: persistor not passed to backupBlob'
+    )
+  }
+  persistor ??= await backupPersistor.forProject(
+    projectBlobsBucket,
+    makeProjectKey(historyId, '')
+  )
   try {
     logger.debug({ projectId, hash }, 'Starting blob backup')
-    await uploadBlobToBackup(historyId, blob, tmpPath)
+    await uploadBlobToBackup(historyId, blob, tmpPath, persistor)
     await storeBlobBackup(projectId, hash)
     recordBackupConclusion('success')
   } catch (error) {
@@ -195,11 +240,13 @@ export async function backupBlob(historyId, blob, tmpPath) {
       // record that we backed it up already
       await storeBlobBackup(projectId, hash)
       recordBackupConclusion('failure', 'already_backed_up')
-      return
+      // Blob already backed up so report success
+      return 'already-written'
     }
-    // eventually queue this for retry - for now this will be fixed by running the script
     recordBackupConclusion('failure')
     logger.warn({ error, projectId, hash }, 'Failed to upload blob to backup')
+    // Always throw an exception if the blob is not backed up
+    throw error
   } finally {
     logger.debug({ projectId, hash }, 'Ended blob backup')
   }

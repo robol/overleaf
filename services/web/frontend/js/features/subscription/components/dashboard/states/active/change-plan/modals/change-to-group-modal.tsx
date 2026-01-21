@@ -1,30 +1,33 @@
 import { useEffect, useState } from 'react'
 import { useTranslation, Trans } from 'react-i18next'
-import { RecurlySubscription } from '../../../../../../../../../../types/subscription/dashboard/subscription'
+import { PaidSubscription } from '../../../../../../../../../../types/subscription/dashboard/subscription'
 import { PriceForDisplayData } from '../../../../../../../../../../types/subscription/plan'
-import { postJSON } from '../../../../../../../../infrastructure/fetch-json'
+import {
+  postJSON,
+  FetchError,
+} from '../../../../../../../../infrastructure/fetch-json'
 import getMeta from '../../../../../../../../utils/meta'
 import { useSubscriptionDashboardContext } from '../../../../../../context/subscription-dashboard-context'
 import GenericErrorAlert from '../../../../generic-error-alert'
 import { subscriptionUpdateUrl } from '../../../../../../data/subscription-url'
 import { getRecurlyGroupPlanCode } from '../../../../../../util/recurly-group-plan-code'
 import { useLocation } from '../../../../../../../../shared/hooks/use-location'
-import OLModal, {
+import {
+  OLModal,
   OLModalBody,
   OLModalFooter,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
-import OLFormSelect from '@/features/ui/components/ol/ol-form-select'
-import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
-import OLFormLabel from '@/features/ui/components/ol/ol-form-label'
-import OLFormCheckbox from '@/features/ui/components/ol/ol-form-checkbox'
+} from '@/shared/components/ol/ol-modal'
+import OLFormSelect from '@/shared/components/ol/ol-form-select'
+import OLFormGroup from '@/shared/components/ol/ol-form-group'
+import OLFormLabel from '@/shared/components/ol/ol-form-label'
+import OLFormCheckbox from '@/shared/components/ol/ol-form-checkbox'
 import { useContactUsModal } from '@/shared/hooks/use-contact-us-modal'
 import { UserProvider } from '@/shared/context/user-context'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
-import OLNotification from '@/features/ui/components/ol/ol-notification'
-import { bsVersion } from '@/features/utils/bootstrap-5'
+import OLButton from '@/shared/components/ol/ol-button'
+import OLNotification from '@/shared/components/ol/ol-notification'
+import handleStripePaymentAction from '@/features/subscription/util/handle-stripe-payment-action'
 
 const educationalPercentDiscount = 40
 
@@ -71,7 +74,7 @@ function GroupPrice({
       <span aria-hidden>
         {totalPrice} <span className="small">/ {t('year')}</span>
       </span>
-      <span className="sr-only">
+      <span className="visually-hidden">
         {queryingGroupPlanToChangeToPrice
           ? t('loading_prices')
           : t('x_price_per_year', {
@@ -79,15 +82,13 @@ function GroupPrice({
             })}
       </span>
 
-      <BootstrapVersionSwitcher bs3={<br />} />
-
       <span className="circle-subtext">
         <span aria-hidden>
           {t('x_price_per_user', {
             price: perUserPrice,
           })}
         </span>
-        <span className="sr-only">
+        <span className="visually-hidden">
           {queryingGroupPlanToChangeToPrice
             ? t('loading_prices')
             : t('x_price_per_user', {
@@ -118,7 +119,8 @@ export function ChangeToGroupModal() {
   const { modal: contactModal, showModal: showContactModal } =
     useContactUsModal({ autofillProjectUrl: false })
   const groupPlans = getMeta('ol-groupPlans')
-  const personalSubscription = getMeta('ol-subscription') as RecurlySubscription
+  const showGroupDiscount = getMeta('ol-showGroupDiscount')
+  const personalSubscription = getMeta('ol-subscription') as PaidSubscription
   const [error, setError] = useState(false)
   const [inflight, setInflight] = useState(false)
   const location = useLocation()
@@ -139,6 +141,11 @@ export function ChangeToGroupModal() {
       })
       location.reload()
     } catch (e) {
+      const { handled } = await handleStripePaymentAction(e as FetchError)
+      if (handled) {
+        location.reload()
+        return
+      }
       setError(true)
       setInflight(false)
     }
@@ -155,15 +162,9 @@ export function ChangeToGroupModal() {
     !groupPlans ||
     !groupPlans.plans ||
     !groupPlans.sizes ||
-    !groupPlans.sizesForHighDenominationCurrencies ||
     !groupPlanToChangeToCode
   )
     return null
-
-  const isUsingCOP = personalSubscription.recurly?.currency === 'COP'
-  const groupPlanSizes = isUsingCOP
-    ? groupPlans.sizesForHighDenominationCurrencies
-    : groupPlans.sizes
 
   return (
     <>
@@ -175,9 +176,14 @@ export function ChangeToGroupModal() {
         onHide={handleCloseModal}
         backdrop="static"
       >
-        <OLModalHeader closeButton>
+        <OLModalHeader>
           <OLModalTitle className="lh-sm">
             {t('customize_your_group_subscription')}
+            {showGroupDiscount && (
+              <p className="group-subscription-modal-title-discount">
+                {t('save_x_or_more', { percentage: '10%' })}
+              </p>
+            )}
           </OLModalTitle>
         </OLModalHeader>
 
@@ -211,7 +217,7 @@ export function ChangeToGroupModal() {
                   <li>{t('track_changes')}</li>
                   <li>
                     <span aria-hidden>+ {t('more').toLowerCase()}</span>
-                    <span className="sr-only">{t('plus_more')}</span>
+                    <span className="visually-hidden">{t('plus_more')}</span>
                   </li>
                 </ul>
               </div>
@@ -221,10 +227,7 @@ export function ChangeToGroupModal() {
                   <fieldset className="form-group">
                     <legend className="legend-as-label">{t('plan')}</legend>
                     {groupPlans.plans.map(option => (
-                      <div
-                        className={bsVersion({ bs3: 'radio' })}
-                        key={option.code}
-                      >
+                      <div key={option.code}>
                         <OLFormCheckbox
                           type="radio"
                           name="plan-code"
@@ -247,7 +250,7 @@ export function ChangeToGroupModal() {
                       value={groupPlanToChangeToSize}
                       onChange={e => setGroupPlanToChangeToSize(e.target.value)}
                     >
-                      {groupPlanSizes.map(size => (
+                      {groupPlans.sizes.map(size => (
                         <option key={`size-option-${size}`}>{size}</option>
                       ))}
                     </OLFormSelect>
@@ -265,20 +268,9 @@ export function ChangeToGroupModal() {
                         setGroupPlanToChangeToUsage('enterprise')
                       }
                     }}
-                    label={
-                      <Trans
-                        i18nKey="license_for_educational_purposes_confirmation"
-                        values={{ percent: educationalPercentDiscount }}
-                        shouldUnescape
-                        tOptions={{ interpolation: { escapeValue: true } }}
-                        components={[
-                          /* eslint-disable-next-line react/jsx-key */
-                          <strong />,
-                          /* eslint-disable-next-line react/jsx-key */
-                          <br />,
-                        ]}
-                      />
-                    }
+                    label={t(
+                      'apply_educational_discount_description_with_group_discount'
+                    )}
                   />
                 </form>
               </div>
@@ -343,11 +335,7 @@ export function ChangeToGroupModal() {
               }
               onClick={upgrade}
               isLoading={inflight}
-              bs3Props={{
-                loading: inflight
-                  ? t('processing_uppercase') + '…'
-                  : t('upgrade_now'),
-              }}
+              loadingLabel={t('processing_uppercase') + '…'}
             >
               {t('upgrade_now')}
             </OLButton>
@@ -358,7 +346,7 @@ export function ChangeToGroupModal() {
               onClick={showContactModal}
             >
               {t('need_more_than_x_licenses', {
-                x: isUsingCOP ? 20 : 50,
+                x: 20,
               })}{' '}
               {t('please_get_in_touch')}
             </OLButton>

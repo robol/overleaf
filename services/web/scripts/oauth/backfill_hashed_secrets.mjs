@@ -1,8 +1,9 @@
 import {
   db,
   READ_PREFERENCE_SECONDARY,
-} from '../../app/src/infrastructure/mongodb.js'
-import { hashSecret } from '../../modules/oauth2-server/app/src/SecretsHelper.js'
+} from '../../app/src/infrastructure/mongodb.mjs'
+import { hashSecret } from '../../modules/oauth2-server/app/src/SecretsHelper.mjs'
+import { scriptRunner } from '../lib/ScriptRunner.mjs'
 
 async function main() {
   console.log('Hashing client secrets...')
@@ -35,7 +36,7 @@ async function hashSecrets(collection, field) {
 }
 
 try {
-  await main()
+  await scriptRunner(main)
   process.exit(0)
 } catch (error) {
   console.error(error)

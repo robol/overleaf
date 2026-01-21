@@ -6,15 +6,16 @@ import {
   useState,
 } from 'react'
 import { useTranslation } from 'react-i18next'
-import Icon from '@/shared/components/icon'
 import { postJSON } from '@/infrastructure/fetch-json'
 import { useProjectContext } from '@/shared/context/project-context'
 import type { BinaryFile } from '../types/binary-file'
 import { Nullable } from '../../../../../types/utils'
 import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
-import OLButton from '@/features/ui/components/ol/ol-button'
+import OLButton from '@/shared/components/ol/ol-button'
 import { sendMB } from '@/infrastructure/event-tracking'
 import useIsMounted from '@/shared/hooks/use-is-mounted'
+import clientId from '@/utils/client-id'
+import { useReferencesContext } from '@/features/ide-react/context/references-context'
 
 type FileViewRefreshButtonProps = {
   setRefreshError: Dispatch<SetStateAction<Nullable<string>>>
@@ -32,17 +33,20 @@ export default function FileViewRefreshButton({
   setRefreshError,
   file,
 }: FileViewRefreshButtonProps) {
-  const { _id: projectId } = useProjectContext()
+  const { projectId } = useProjectContext()
   const [refreshing, setRefreshing] = useState(false)
   const isMountedRef = useIsMounted()
+  const { indexAllReferences } = useReferencesContext()
 
   const refreshFile = useCallback(
     (isTPR: Nullable<boolean>) => {
       setRefreshing(true)
       // Replacement of the file handled by the file tree
       window.expectingLinkedFileRefreshedSocketFor = file.name
+      const shouldReindexReferences = isTPR || /\.bib$/.test(file.name)
       const body = {
-        shouldReindexReferences: isTPR || /\.bib$/.test(file.name),
+        shouldReindexReferences,
+        clientId: clientId.get(),
       }
       postJSON(`/project/${projectId}/linked_file/${file.id}/refresh`, {
         body,
@@ -50,6 +54,9 @@ export default function FileViewRefreshButton({
         .then(() => {
           if (isMountedRef.current) {
             setRefreshing(false)
+          }
+          if (shouldReindexReferences) {
+            indexAllReferences(false)
           }
           sendMB('refresh-linked-file', {
             provider: file.linkedFileData?.provider,
@@ -62,7 +69,7 @@ export default function FileViewRefreshButton({
           }
         })
     },
-    [file, projectId, setRefreshError, isMountedRef]
+    [file, projectId, setRefreshError, isMountedRef, indexAllReferences]
   )
 
   if (tprFileViewRefreshButton.length > 0) {
@@ -103,14 +110,7 @@ function FileViewRefreshButtonDefault({
       onClick={() => refreshFile(null)}
       disabled={refreshing}
       isLoading={refreshing}
-      bs3Props={{
-        loading: (
-          <>
-            <Icon type="refresh" spin={refreshing} fw />{' '}
-            <span>{refreshing ? `${t('refreshing')}…` : t('refresh')}</span>
-          </>
-        ),
-      }}
+      loadingLabel={t('refreshing')}
     >
       {t('refresh')}
     </OLButton>

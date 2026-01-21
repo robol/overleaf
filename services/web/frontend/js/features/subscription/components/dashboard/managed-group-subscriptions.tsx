@@ -7,9 +7,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { useSubscriptionDashboardContext } from '../../context/subscription-dashboard-context'
 import { RowLink } from './row-link'
 import { ManagedGroupSubscription } from '../../../../../../types/subscription/dashboard/subscription'
-import { bsVersion } from '@/features/utils/bootstrap-5'
-import { useFeatureFlag } from '@/shared/context/split-test-context'
-import classnames from 'classnames'
+import { sendMB } from '@/infrastructure/event-tracking'
 
 function ManagedGroupAdministrator({
   subscription,
@@ -90,8 +88,10 @@ function ManagedGroupAdministrator({
 
 export default function ManagedGroupSubscriptions() {
   const { t } = useTranslation()
+
+  const usersEmail = getMeta('ol-usersEmail')
+
   const { managedGroupSubscriptions } = useSubscriptionDashboardContext()
-  const isFlexibleGroupLicensing = useFeatureFlag('flexible-group-licensing')
 
   if (!managedGroupSubscriptions) {
     return null
@@ -104,32 +104,24 @@ export default function ManagedGroupSubscriptions() {
   return (
     <>
       {managedGroupSubscriptions.map(subscription => {
+        const isAdmin = usersEmail === subscription.admin_id.email
+
         return (
           <div key={`managed-group-${subscription._id}`}>
-            <h2 className={classnames('h3', bsVersion({ bs5: 'fw-bold' }))}>
-              {t('group_management')}
-            </h2>
+            <h2 className="h3 fw-bold">{t('group_management')}</h2>
             <p>
               <ManagedGroupAdministrator subscription={subscription} />
             </p>
             <ul className="list-group p-0">
               <RowLink
                 href={`/manage/groups/${subscription._id}/members`}
-                heading={
-                  isFlexibleGroupLicensing
-                    ? t('group_members')
-                    : t('manage_members')
-                }
+                heading={t('group_members')}
                 subtext={t('manage_group_members_subtext')}
                 icon="groups"
               />
               <RowLink
                 href={`/manage/groups/${subscription._id}/managers`}
-                heading={
-                  isFlexibleGroupLicensing
-                    ? t('group_managers')
-                    : t('manage_group_managers')
-                }
+                heading={t('group_managers')}
                 subtext={t('manage_managers_subtext')}
                 icon="manage_accounts"
               />
@@ -139,13 +131,22 @@ export default function ManagedGroupSubscriptions() {
               {groupSettingsAdvertisedFor?.includes(subscription._id) && (
                 <GroupSettingsButtonWithAdBadge subscription={subscription} />
               )}
+              {isAdmin && (
+                <RowLink
+                  href={`/manage/groups/${subscription._id}/audit-logs`}
+                  heading={t('audit_logs')}
+                  subtext={t('view_audit_logs_group_subtext')}
+                  icon="list"
+                  onClick={() =>
+                    sendMB('group-audit-log-click', {
+                      subscriptionId: subscription._id,
+                    })
+                  }
+                />
+              )}
               <RowLink
                 href={`/metrics/groups/${subscription._id}`}
-                heading={
-                  isFlexibleGroupLicensing
-                    ? t('usage_metrics')
-                    : t('view_metrics')
-                }
+                heading={t('usage_metrics')}
                 subtext={t('view_metrics_group_subtext')}
                 icon="insights"
               />

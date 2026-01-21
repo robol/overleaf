@@ -34,8 +34,6 @@ const argv = minimist(process.argv.slice(2), {
 const CURRENCY_CODE_REGEX = /^[A-Z]{3}$/
 // Group plans have a plan code of the form group_name_size_type, e.g.
 const GROUP_SIZE_REGEX = /group_\w+_([0-9]+)_\w+/
-// Only group plans with more than 4 users can have additional licenses
-const SINGLE_LICENSE_MAX_GROUP_SIZE = 4
 
 // Compute prices for the base plan
 
@@ -80,6 +78,16 @@ function computeAddOnPrices(prices, size) {
   })
 }
 
+function shouldSkipPlan(record) {
+  const planCode = record.plan_code
+  // Skip non-legacy group plan codes (e.g. group_professional_20_enterprise)
+  if (planCode.startsWith('group_') && !GROUP_SIZE_REGEX.test(planCode)) {
+    return true
+  }
+
+  return false
+}
+
 // Convert the raw records into the output format
 
 function transformRecordToPlan(record) {
@@ -92,15 +100,13 @@ function transformRecordToPlan(record) {
   // Large group plans have an add-on for additional licenses
   if (isGroupPlan(record)) {
     const size = getGroupSize(record)
-    if (size > SINGLE_LICENSE_MAX_GROUP_SIZE) {
-      const addOnPrices = computeAddOnPrices(prices, size)
-      plan._addOns = [
-        {
-          code: 'additional-license',
-          currencies: addOnPrices,
-        },
-      ]
-    }
+    const addOnPrices = computeAddOnPrices(prices, size)
+    plan._addOns = [
+      {
+        code: 'additional-license',
+        currencies: addOnPrices,
+      },
+    ]
   }
   return plan
 }
@@ -108,8 +114,12 @@ function transformRecordToPlan(record) {
 function generate(inputFile, outputFile) {
   const input = fs.readFileSync(inputFile, 'utf8')
   const rawRecords = csv.parse(input, { columns: true })
+  // filter out plans that should be skipped
+  const filteredRecords = rawRecords.filter(record => !shouldSkipPlan(record))
   // transform the raw records into the output format
-  const plans = _.sortBy(rawRecords, 'plan_code').map(transformRecordToPlan)
+  const plans = _.sortBy(filteredRecords, 'plan_code').map(
+    transformRecordToPlan
+  )
   const output = JSON.stringify(plans, null, 2)
   fs.writeFileSync(outputFile, output)
 }

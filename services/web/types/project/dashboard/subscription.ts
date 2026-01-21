@@ -1,3 +1,8 @@
+import {
+  SubscriptionState,
+  PaymentProvider,
+} from '../../subscription/dashboard/subscription'
+
 type SubscriptionBase = {
   featuresPageURL: string
 }
@@ -9,7 +14,7 @@ export type FreePlanSubscription = {
 type FreeSubscription = FreePlanSubscription
 
 type RecurlyStatus = {
-  state: 'active' | 'canceled' | 'expired' | 'paused'
+  state: SubscriptionState
 }
 
 type PaidSubscriptionBase = {
@@ -20,6 +25,7 @@ type PaidSubscriptionBase = {
     teamName?: string
     name: string
     recurlyStatus?: RecurlyStatus
+    paymentProvider?: PaymentProvider
   }
 } & SubscriptionBase
 

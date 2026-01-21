@@ -2,13 +2,13 @@ import logger from '@overleaf/logger'
 import metrics from '@overleaf/metrics'
 import fs from 'node:fs'
 import Path from 'node:path'
-import FileSystemImportManager from './FileSystemImportManager.js'
-import ProjectUploadManager from './ProjectUploadManager.js'
-import SessionManager from '../Authentication/SessionManager.js'
-import EditorController from '../Editor/EditorController.js'
-import ProjectLocator from '../Project/ProjectLocator.js'
+import FileSystemImportManager from './FileSystemImportManager.mjs'
+import ProjectUploadManager from './ProjectUploadManager.mjs'
+import SessionManager from '../Authentication/SessionManager.mjs'
+import EditorController from '../Editor/EditorController.mjs'
+import ProjectLocator from '../Project/ProjectLocator.mjs'
 import Settings from '@overleaf/settings'
-import { InvalidZipFileError } from './ArchiveErrors.js'
+import { InvalidZipFileError } from './ArchiveErrors.mjs'
 import multer from 'multer'
 import lodash from 'lodash'
 import { expressify } from '@overleaf/promise-utils'
@@ -66,33 +66,39 @@ function uploadProject(req, res, next) {
 async function uploadFile(req, res, next) {
   const timer = new metrics.Timer('file-upload')
   const name = req.body.name
-  const path = req.file?.path
+  const { path } = req.file
   const projectId = req.params.Project_id
+  const userId = SessionManager.getLoggedInUserId(req.session)
   let { folder_id: folderId } = req.query
   if (name == null || name.length === 0 || name.length > 150) {
+    fs.unlink(path, function () {})
     return res.status(422).json({
       success: false,
       error: 'invalid_filename',
     })
   }
 
-  // preserve the directory structure from an uploaded folder
-  const { relativePath } = req.body
-  // NOTE: Uppy sends a "null" string for `relativePath` when the file is not nested in a folder
-  if (relativePath && relativePath !== 'null') {
-    const { path } = await ProjectLocator.promises.findElement({
-      project_id: projectId,
-      element_id: folderId,
-      type: 'folder',
-    })
-    const { lastFolder } = await EditorController.promises.mkdirp(
-      projectId,
-      Path.dirname(Path.join('/', path.fileSystem, relativePath))
-    )
-    folderId = lastFolder._id
+  try {
+    // preserve the directory structure from an uploaded folder
+    const { relativePath } = req.body
+    // NOTE: Uppy sends a "null" string for `relativePath` when the file is not nested in a folder
+    if (relativePath && relativePath !== 'null') {
+      const { path } = await ProjectLocator.promises.findElement({
+        project_id: projectId,
+        element_id: folderId,
+        type: 'folder',
+      })
+      const { lastFolder } = await EditorController.promises.mkdirp(
+        projectId,
+        Path.dirname(Path.join('/', path.fileSystem, relativePath)),
+        userId
+      )
+      folderId = lastFolder._id
+    }
+  } catch (error) {
+    fs.unlink(path, function () {})
+    throw error
   }
-
-  const userId = SessionManager.getLoggedInUserId(req.session)
 
   return FileSystemImportManager.addEntity(
     userId,
@@ -162,8 +168,14 @@ function multerMiddleware(req, res, next) {
         .status(422)
         .json({ success: false, error: req.i18n.translate('file_too_large') })
     }
-
-    return next(err)
+    if (err) return next(err)
+    if (!req.file?.path) {
+      logger.info({ req }, 'missing req.file.path on upload')
+      return res
+        .status(400)
+        .json({ success: false, error: 'invalid_upload_request' })
+    }
+    next()
   })
 }
 

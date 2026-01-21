@@ -4,48 +4,29 @@ import Stream from 'node:stream'
 import { setTimeout } from 'node:timers/promises'
 import { promisify } from 'node:util'
 import { ObjectId, Binary } from 'mongodb'
-import {
-  db,
-  backedUpBlobs,
-  globalBlobs,
-} from '../../../../storage/lib/mongodb.js'
+import { db, globalBlobs } from '../../../../storage/lib/mongodb.js'
 import cleanup from './support/cleanup.js'
 import testProjects from '../api/support/test_projects.js'
 import { execFile } from 'node:child_process'
 import chai, { expect } from 'chai'
 import chaiExclude from 'chai-exclude'
-import config from 'config'
-import ObjectPersistor from '@overleaf/object-persistor'
 import { WritableBuffer } from '@overleaf/stream-utils'
 import {
   backupPersistor,
   projectBlobsBucket,
 } from '../../../../storage/lib/backupPersistor.mjs'
-import projectKey from '../../../../storage/lib/project_key.js'
 import {
   BlobStore,
   makeProjectKey,
 } from '../../../../storage/lib/blob_store/index.js'
 
+import { mockFilestore } from './support/MockFilestore.mjs'
+
 chai.use(chaiExclude)
 const TIMEOUT = 20 * 1_000
 
-const { deksBucket } = config.get('backupStore')
-const { tieringStorageClass } = config.get('backupPersistor')
-
 const projectsCollection = db.collection('projects')
 const deletedProjectsCollection = db.collection('deletedProjects')
-const deletedFilesCollection = db.collection('deletedFiles')
-
-const FILESTORE_PERSISTOR = ObjectPersistor({
-  backend: 'gcs',
-  gcs: {
-    endpoint: {
-      apiEndpoint: process.env.GCS_API_ENDPOINT,
-      projectId: process.env.GCS_PROJECT_ID,
-    },
-  },
-})
 
 /**
  * @param {ObjectId} objectId
@@ -74,17 +55,6 @@ function binaryForGitBlobHash(gitBlobHash) {
   return new Binary(Buffer.from(gitBlobHash, 'hex'))
 }
 
-async function listS3Bucket(bucket, wantStorageClass) {
-  const client = backupPersistor._getClientForBucket(bucket)
-  const response = await client.listObjectsV2({ Bucket: bucket }).promise()
-
-  for (const object of response.Contents || []) {
-    expect(object).to.have.property('StorageClass', wantStorageClass)
-  }
-
-  return (response.Contents || []).map(item => item.Key || '')
-}
-
 function objectIdFromTime(timestamp) {
   return ObjectId.createFromTime(new Date(timestamp).getTime() / 1000)
 }
@@ -93,7 +63,6 @@ const PRINT_IDS_AND_HASHES_FOR_DEBUGGING = false
 
 describe('back_fill_file_hash script', function () {
   this.timeout(TIMEOUT)
-  const USER_FILES_BUCKET_NAME = 'fake-user-files-gcs'
 
   const projectId0 = objectIdFromTime('2017-01-01T00:00:00Z')
   const projectId1 = objectIdFromTime('2017-01-01T00:01:00Z')
@@ -130,11 +99,8 @@ describe('back_fill_file_hash script', function () {
   const fileId7 = objectIdFromTime('2017-02-01T00:07:00Z')
   const fileId8 = objectIdFromTime('2017-02-01T00:08:00Z')
   const fileId9 = objectIdFromTime('2017-02-01T00:09:00Z')
-  const fileIdDeleted1 = objectIdFromTime('2017-03-01T00:01:00Z')
-  const fileIdDeleted2 = objectIdFromTime('2017-03-01T00:02:00Z')
-  const fileIdDeleted3 = objectIdFromTime('2017-03-01T00:03:00Z')
-  const fileIdDeleted4 = objectIdFromTime('2024-03-01T00:04:00Z')
-  const fileIdDeleted5 = objectIdFromTime('2024-03-01T00:05:00Z')
+  const fileId10 = objectIdFromTime('2017-02-01T00:10:00Z')
+  const fileId11 = objectIdFromTime('2017-02-01T00:11:00Z')
   const contentTextBlob0 = Buffer.from('Hello 0')
   const hashTextBlob0 = gitBlobHashBuffer(contentTextBlob0)
   const contentTextBlob1 = Buffer.from('Hello 1')
@@ -161,7 +127,6 @@ describe('back_fill_file_hash script', function () {
       hash: hashFile7,
       content: contentFile7,
     },
-    { projectId: projectId0, historyId: historyId0, fileId: fileIdDeleted5 },
     {
       projectId: projectId0,
       historyId: historyId0,
@@ -181,7 +146,6 @@ describe('back_fill_file_hash script', function () {
       content: contentTextBlob2,
     },
     { projectId: projectId1, historyId: historyId1, fileId: fileId1 },
-    { projectId: projectId1, historyId: historyId1, fileId: fileIdDeleted1 },
     {
       projectId: projectId2,
       historyId: historyId2,
@@ -189,22 +153,27 @@ describe('back_fill_file_hash script', function () {
       hasHash: true,
     },
     { projectId: projectId3, historyId: historyId3, fileId: fileId3 },
+    // fileId10 is dupe of fileId3, without a hash
+    {
+      projectId: projectId3,
+      historyId: historyId3,
+      fileId: fileId10,
+      content: Buffer.from(fileId3.toString()),
+      hash: gitBlobHash(fileId3),
+    },
+    // fileId11 is dupe of fileId3, but with a hash
+    {
+      projectId: projectId3,
+      historyId: historyId3,
+      fileId: fileId11,
+      content: Buffer.from(fileId3.toString()),
+      hash: gitBlobHash(fileId3),
+      hasHash: true,
+    },
     {
       projectId: projectIdDeleted0,
       historyId: historyIdDeleted0,
       fileId: fileId4,
-    },
-    {
-      projectId: projectIdDeleted0,
-      historyId: historyIdDeleted0,
-      fileId: fileIdDeleted2,
-    },
-    // { historyId: historyIdDeleted0, fileId:fileIdDeleted3 }, // fileIdDeleted3 is dupe of fileIdDeleted2
-    {
-      projectId: projectIdDeleted0,
-      historyId: historyIdDeleted0,
-      fileId: fileIdDeleted4,
-      hasHash: true,
     },
     {
       projectId: projectIdDeleted1,
@@ -233,10 +202,6 @@ describe('back_fill_file_hash script', function () {
       fileId4,
       fileId5,
       fileId6,
-      fileIdDeleted1,
-      fileIdDeleted2,
-      fileIdDeleted3,
-      fileIdDeleted4,
     }
     console.log({
       projectId0,
@@ -328,7 +293,11 @@ describe('back_fill_file_hash script', function () {
                 fileRefs: [],
                 folders: [
                   {
-                    fileRefs: [{ _id: fileId3 }],
+                    fileRefs: [
+                      { _id: fileId3 },
+                      { _id: fileId10 },
+                      { _id: fileId11, hash: gitBlobHash(fileId3) },
+                    ],
                     folders: [],
                   },
                 ],
@@ -446,17 +415,6 @@ describe('back_fill_file_hash script', function () {
         },
       },
     ])
-    await deletedFilesCollection.insertMany([
-      { _id: fileIdDeleted1, projectId: projectId1 },
-      { _id: fileIdDeleted2, projectId: projectIdDeleted0 },
-      { _id: fileIdDeleted3, projectId: projectIdDeleted0 },
-      {
-        _id: fileIdDeleted4,
-        projectId: projectIdDeleted0,
-        hash: gitBlobHash(fileIdDeleted4),
-      },
-      { _id: fileIdDeleted5, projectId: projectId0 },
-    ])
   }
 
   async function populateHistoryV1() {
@@ -484,81 +442,36 @@ describe('back_fill_file_hash script', function () {
   }
 
   async function populateFilestore() {
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectId0}/${fileId0}`,
-      Stream.Readable.from([fileId0.toString()])
+    await mockFilestore.addFile(projectId0, fileId0, fileId0.toString())
+    await mockFilestore.addFile(projectId0, fileId6, fileId6.toString())
+    await mockFilestore.addFile(projectId0, fileId7, contentFile7)
+    await mockFilestore.addFile(projectId1, fileId1, fileId1.toString())
+    await mockFilestore.addFile(projectId2, fileId2, fileId2.toString())
+    await mockFilestore.addFile(projectId3, fileId3, fileId3.toString())
+    await mockFilestore.addFile(
+      projectId3,
+      fileId10,
+      // fileId10 is dupe of fileId3
+      fileId3.toString()
     )
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectId0}/${fileId6}`,
-      Stream.Readable.from([fileId6.toString()])
+    await mockFilestore.addFile(
+      projectId3,
+      fileId11,
+      // fileId11 is dupe of fileId3
+      fileId3.toString()
     )
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectId0}/${fileId7}`,
-      Stream.Readable.from([contentFile7])
-    )
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectId0}/${fileIdDeleted5}`,
-      Stream.Readable.from([fileIdDeleted5.toString()])
-    )
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectId1}/${fileId1}`,
-      Stream.Readable.from([fileId1.toString()])
-    )
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectId2}/${fileId2}`,
-      Stream.Readable.from([fileId2.toString()])
-    )
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectId3}/${fileId3}`,
-      Stream.Readable.from([fileId3.toString()])
-    )
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectIdDeleted0}/${fileId4}`,
-      Stream.Readable.from([fileId4.toString()])
-    )
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectIdDeleted1}/${fileId5}`,
-      Stream.Readable.from([fileId5.toString()])
-    )
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectId1}/${fileIdDeleted1}`,
-      Stream.Readable.from([fileIdDeleted1.toString()])
-    )
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectIdDeleted0}/${fileIdDeleted2}`,
-      Stream.Readable.from([fileIdDeleted2.toString()])
-    )
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectIdDeleted0}/${fileIdDeleted3}`,
-      // same content as 2, deduplicate
-      Stream.Readable.from([fileIdDeleted2.toString()])
-    )
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectIdDeleted0}/${fileIdDeleted4}`,
-      Stream.Readable.from([fileIdDeleted4.toString()])
-    )
-    await FILESTORE_PERSISTOR.sendStream(
-      USER_FILES_BUCKET_NAME,
-      `${projectIdBadFileTree3}/${fileId9}`,
-      Stream.Readable.from([fileId9.toString()])
+    await mockFilestore.addFile(projectIdDeleted0, fileId4, fileId4.toString())
+    await mockFilestore.addFile(projectIdDeleted1, fileId5, fileId5.toString())
+    await mockFilestore.addFile(
+      projectIdBadFileTree3,
+      fileId9,
+      fileId9.toString()
     )
   }
 
   async function prepareEnvironment() {
     await cleanup.everything()
+    await mockFilestore.start()
     await populateMongo()
     await populateHistoryV1()
     await populateFilestore()
@@ -566,20 +479,16 @@ describe('back_fill_file_hash script', function () {
 
   /**
    * @param {Array<string>} args
-   * @param {Record<string, string>} env
-   * @param {boolean} shouldHaveWritten
-   * @return {Promise<{result, stats: any}>}
+   * @return {Promise<{result: { stdout: string, stderr: string, status: number }, stats: any}>}
    */
-  async function tryRunScript(args = [], env = {}, shouldHaveWritten) {
+  async function rawRunScript(args = []) {
     let result
     try {
       result = await promisify(execFile)(
         process.argv0,
         [
           'storage/scripts/back_fill_file_hash.mjs',
-          '--processNonDeletedProjects=true',
-          '--processDeletedProjects=true',
-          '--processDeletedFiles=true',
+          '--sleep-before-exit-ms=1',
           ...args,
         ],
         {
@@ -587,9 +496,7 @@ describe('back_fill_file_hash script', function () {
           timeout: TIMEOUT - 500,
           env: {
             ...process.env,
-            USER_FILES_BUCKET_NAME,
-            SLEEP_BEFORE_EXIT: '1',
-            ...env,
+            AWS_SDK_JS_SUPPRESS_MAINTENANCE_MODE_MESSAGE: '1',
             LOG_LEVEL: 'warn', // Override LOG_LEVEL of acceptance tests
           },
         }
@@ -602,14 +509,26 @@ describe('back_fill_file_hash script', function () {
       }
       result = { stdout, stderr, status: code }
     }
+    // Ensure no tmp folder is left behind.
     expect((await fs.promises.readdir('/tmp')).join(';')).to.not.match(
       /back_fill_file_hash/
     )
-    const extraStatsKeys = [
-      'eventLoop',
-      'readFromGCSThroughputMiBPerSecond',
-      'writeToAWSThroughputMiBPerSecond',
-    ]
+    return result
+  }
+
+  /**
+   * @param {Array<string>} args
+   * @param {boolean} shouldHaveWritten
+   * @return {Promise<{result, stats: any, migrationCreated: boolean}>}
+   */
+  async function tryRunScript(args = [], shouldHaveWritten) {
+    const result = await rawRunScript([
+      '--output=-',
+      '--projects',
+      '--deleted-projects',
+      ...args,
+    ])
+    const extraStatsKeys = ['eventLoop', 'readFromGCSThroughputMiBPerSecond']
     const stats = JSON.parse(
       result.stderr
         .split('\n')
@@ -624,7 +543,6 @@ describe('back_fill_file_hash script', function () {
     delete stats.time
     if (shouldHaveWritten) {
       expect(stats.readFromGCSThroughputMiBPerSecond).to.be.greaterThan(0)
-      expect(stats.writeToAWSThroughputMiBPerSecond).to.be.greaterThan(0)
     }
     for (const key of extraStatsKeys) {
       delete stats[key]
@@ -635,22 +553,27 @@ describe('back_fill_file_hash script', function () {
       'should not have any remaining deferred batches'
     )
     delete stats.deferredBatches
-    return { stats, result }
+    const migrationCreated = !!(await db
+      .collection('migrations')
+      .findOne({ name: '20250519101128_binary_files_migration' }))
+    return { stats, result, migrationCreated }
   }
 
   /**
    * @param {Array<string>} args
-   * @param {Record<string, string>} env
    * @param {boolean} shouldHaveWritten
    * @return {Promise<{result, stats: any}>}
    */
-  async function runScript(args = [], env = {}, shouldHaveWritten = true) {
-    const { stats, result } = await tryRunScript(args, env, shouldHaveWritten)
+  async function runScript(args = [], shouldHaveWritten = true) {
+    const { stats, result, migrationCreated } = await tryRunScript(
+      args,
+      shouldHaveWritten
+    )
     if (result.status !== 0) {
       console.log(result)
       expect(result).to.have.property('status', 0)
     }
-    return { stats, result }
+    return { stats, result, migrationCreated }
   }
 
   /**
@@ -741,6 +664,8 @@ describe('back_fill_file_hash script', function () {
                       {
                         fileRefs: [
                           { _id: fileId3, hash: gitBlobHash(fileId3) },
+                          { _id: fileId10, hash: gitBlobHash(fileId3) },
+                          { _id: fileId11, hash: gitBlobHash(fileId3) },
                         ],
                         folders: [],
                       },
@@ -868,144 +793,6 @@ describe('back_fill_file_hash script', function () {
           },
         },
       ])
-      expect(await deletedFilesCollection.find({}).toArray()).to.deep.equal([
-        {
-          _id: fileIdDeleted1,
-          projectId: projectId1,
-          hash: gitBlobHash(fileIdDeleted1),
-        },
-        {
-          _id: fileIdDeleted2,
-          projectId: projectIdDeleted0,
-          hash: gitBlobHash(fileIdDeleted2),
-        },
-        {
-          _id: fileIdDeleted3,
-          projectId: projectIdDeleted0,
-          // uses the same content as fileIdDeleted2
-          hash: gitBlobHash(fileIdDeleted2),
-        },
-        {
-          _id: fileIdDeleted4,
-          projectId: projectIdDeleted0,
-          hash: gitBlobHash(fileIdDeleted4),
-        },
-        {
-          _id: fileIdDeleted5,
-          projectId: projectId0,
-          hash: gitBlobHash(fileIdDeleted5),
-        },
-      ])
-      expect(
-        (await backedUpBlobs.find({}, { sort: { _id: 1 } }).toArray()).map(
-          entry => {
-            // blobs are pushed unordered into mongo. Sort the list for consistency.
-            entry.blobs.sort()
-            return entry
-          }
-        )
-      ).to.deep.equal([
-        {
-          _id: projectId0,
-          blobs: [
-            binaryForGitBlobHash(gitBlobHash(fileId0)),
-            binaryForGitBlobHash(hashFile7),
-            binaryForGitBlobHash(gitBlobHash(fileIdDeleted5)),
-            binaryForGitBlobHash(hashTextBlob0),
-          ].sort(),
-        },
-        {
-          _id: projectId1,
-          blobs: [
-            binaryForGitBlobHash(gitBlobHash(fileId1)),
-            binaryForGitBlobHash(gitBlobHash(fileIdDeleted1)),
-            binaryForGitBlobHash(hashTextBlob1),
-          ].sort(),
-        },
-        {
-          _id: projectId2,
-          blobs: [binaryForGitBlobHash(hashTextBlob2)]
-            .concat(
-              processHashedFiles
-                ? [binaryForGitBlobHash(gitBlobHash(fileId2))]
-                : []
-            )
-            .sort(),
-        },
-        {
-          _id: projectIdDeleted0,
-          blobs: [
-            binaryForGitBlobHash(gitBlobHash(fileId4)),
-            binaryForGitBlobHash(gitBlobHash(fileIdDeleted2)),
-          ]
-            .concat(
-              processHashedFiles
-                ? [binaryForGitBlobHash(gitBlobHash(fileIdDeleted4))]
-                : []
-            )
-            .sort(),
-        },
-        {
-          _id: projectId3,
-          blobs: [binaryForGitBlobHash(gitBlobHash(fileId3))].sort(),
-        },
-        ...(processHashedFiles
-          ? [
-              {
-                _id: projectIdDeleted1,
-                blobs: [binaryForGitBlobHash(gitBlobHash(fileId5))].sort(),
-              },
-            ]
-          : []),
-        {
-          _id: projectIdBadFileTree0,
-          blobs: [binaryForGitBlobHash(hashTextBlob3)].sort(),
-        },
-        {
-          _id: projectIdBadFileTree3,
-          blobs: [binaryForGitBlobHash(gitBlobHash(fileId9))].sort(),
-        },
-      ])
-    })
-    it('should have backed up all the files', async function () {
-      expect(tieringStorageClass).to.exist
-      const blobs = await listS3Bucket(projectBlobsBucket, tieringStorageClass)
-      expect(blobs.sort()).to.deep.equal(
-        writtenBlobs
-          .map(({ historyId, fileId, hash }) =>
-            makeProjectKey(historyId, hash || gitBlobHash(fileId))
-          )
-          .sort()
-      )
-      for (let { historyId, fileId, hash, content } of writtenBlobs) {
-        hash = hash || gitBlobHash(fileId.toString())
-        const s = await backupPersistor.getObjectStream(
-          projectBlobsBucket,
-          makeProjectKey(historyId, hash),
-          { autoGunzip: true }
-        )
-        const buf = new WritableBuffer()
-        await Stream.promises.pipeline(s, buf)
-        expect(gitBlobHashBuffer(buf.getContents())).to.equal(hash)
-        if (content) {
-          expect(buf.getContents()).to.deep.equal(content)
-        } else {
-          const id = buf.getContents().toString('utf-8')
-          expect(id).to.equal(fileId.toString())
-          // double check we are not comparing 'undefined' or '[object Object]' above
-          expect(id).to.match(/^[a-f0-9]{24}$/)
-        }
-      }
-      const deks = await listS3Bucket(deksBucket, 'STANDARD')
-      expect(deks.sort()).to.deep.equal(
-        Array.from(
-          new Set(
-            writtenBlobs.map(
-              ({ historyId }) => projectKey.format(historyId) + '/dek'
-            )
-          )
-        ).sort()
-      )
     })
     it('should have written the back filled files to history v1', async function () {
       for (const { historyId, hash, fileId, content } of writtenBlobs) {
@@ -1029,26 +816,10 @@ describe('back_fill_file_hash script', function () {
     // Practically, this is slow and moving it to the end of the tests gets us there most of the way.
     it('should process nothing on re-run', async function () {
       const rerun = await runScript(
-        processHashedFiles ? ['--processHashedFiles=true'] : [],
-        {},
+        !processHashedFiles ? ['--skip-hashed-files'] : [],
         false
       )
-      let stats = {
-        ...STATS_ALL_ZERO,
-        // We still need to iterate over all the projects and blobs.
-        projects: 10,
-        blobs: 13,
-        backedUpBlobs: 13,
-        badFileTrees: 4,
-      }
-      if (processHashedFiles) {
-        stats = sumStats(stats, {
-          ...STATS_ALL_ZERO,
-          blobs: 3,
-          backedUpBlobs: 3,
-        })
-      }
-      expect(rerun.stats).deep.equal(stats)
+      expect(rerun.stats).deep.equal(statsForRerun(processHashedFiles))
     })
   }
 
@@ -1071,7 +842,6 @@ describe('back_fill_file_hash script', function () {
   const STATS_ALL_ZERO = {
     projects: 0,
     blobs: 0,
-    backedUpBlobs: 0,
     filesWithHash: 0,
     filesWithoutHash: 0,
     filesDuplicated: 0,
@@ -1085,23 +855,16 @@ describe('back_fill_file_hash script', function () {
     fileHardDeleted: 0,
     badFileTrees: 0,
     mongoUpdates: 0,
-    deduplicatedWriteToAWSLocalCount: 0,
-    deduplicatedWriteToAWSLocalEgress: 0,
-    deduplicatedWriteToAWSRemoteCount: 0,
-    deduplicatedWriteToAWSRemoteEgress: 0,
     readFromGCSCount: 0,
     readFromGCSIngress: 0,
-    writeToAWSCount: 0,
-    writeToAWSEgress: 0,
     writeToGCSCount: 0,
     writeToGCSEgress: 0,
   }
   const STATS_UP_TO_PROJECT1 = {
     projects: 2,
     blobs: 2,
-    backedUpBlobs: 0,
     filesWithHash: 0,
-    filesWithoutHash: 7,
+    filesWithoutHash: 5,
     filesDuplicated: 1,
     filesRetries: 0,
     filesFailed: 0,
@@ -1112,24 +875,17 @@ describe('back_fill_file_hash script', function () {
     projectHardDeleted: 0,
     fileHardDeleted: 0,
     badFileTrees: 0,
-    mongoUpdates: 6,
-    deduplicatedWriteToAWSLocalCount: 0,
-    deduplicatedWriteToAWSLocalEgress: 0,
-    deduplicatedWriteToAWSRemoteCount: 0,
-    deduplicatedWriteToAWSRemoteEgress: 0,
-    readFromGCSCount: 8,
-    readFromGCSIngress: 4000134,
-    writeToAWSCount: 7,
-    writeToAWSEgress: 4086,
-    writeToGCSCount: 5,
-    writeToGCSEgress: 4000096,
+    mongoUpdates: 2, // 4-2 blobs written to backedUpBlobs collection
+    readFromGCSCount: 4,
+    readFromGCSIngress: 4000072,
+    writeToGCSCount: 3,
+    writeToGCSEgress: 4000048,
   }
   const STATS_UP_FROM_PROJECT1_ONWARD = {
     projects: 8,
     blobs: 2,
-    backedUpBlobs: 0,
     filesWithHash: 0,
-    filesWithoutHash: 5,
+    filesWithoutHash: 4,
     filesDuplicated: 0,
     filesRetries: 0,
     filesFailed: 0,
@@ -1140,28 +896,20 @@ describe('back_fill_file_hash script', function () {
     projectHardDeleted: 0,
     fileHardDeleted: 0,
     badFileTrees: 4,
-    mongoUpdates: 10,
-    deduplicatedWriteToAWSLocalCount: 1,
-    deduplicatedWriteToAWSLocalEgress: 30,
-    deduplicatedWriteToAWSRemoteCount: 0,
-    deduplicatedWriteToAWSRemoteEgress: 0,
-    readFromGCSCount: 7,
-    readFromGCSIngress: 134,
-    writeToAWSCount: 6,
-    writeToAWSEgress: 173,
-    writeToGCSCount: 4,
-    writeToGCSEgress: 96,
+    mongoUpdates: 3, // previously 5 blobs written to backedUpBlobs collection
+    readFromGCSCount: 4,
+    readFromGCSIngress: 96,
+    writeToGCSCount: 3,
+    writeToGCSEgress: 72,
   }
   const STATS_FILES_HASHED_EXTRA = {
     ...STATS_ALL_ZERO,
-    filesWithHash: 3,
-    mongoUpdates: 1,
-    readFromGCSCount: 3,
-    readFromGCSIngress: 72,
-    writeToAWSCount: 3,
-    writeToAWSEgress: 89,
-    writeToGCSCount: 3,
-    writeToGCSEgress: 72,
+    filesWithHash: 2,
+    mongoUpdates: 0, // previously 2 blobs written to backedUpBlobs collection
+    readFromGCSCount: 2,
+    readFromGCSIngress: 48,
+    writeToGCSCount: 2,
+    writeToGCSEgress: 48,
   }
 
   function sumStats(a, b) {
@@ -1173,19 +921,35 @@ describe('back_fill_file_hash script', function () {
     STATS_UP_FROM_PROJECT1_ONWARD
   )
 
-  describe('error cases', () => {
+  function statsForRerun(processHashedFiles = true) {
+    let stats = {
+      ...STATS_ALL_ZERO,
+      // We still need to iterate over all the projects and blobs.
+      projects: 10,
+      blobs: 10,
+
+      badFileTrees: 4,
+    }
+    if (processHashedFiles) {
+      stats = sumStats(stats, {
+        ...STATS_ALL_ZERO,
+        blobs: 2,
+      })
+    }
+    return stats
+  }
+
+  describe('error cases', function () {
     beforeEach('prepare environment', prepareEnvironment)
 
     it('should gracefully handle fatal errors', async function () {
-      await FILESTORE_PERSISTOR.deleteObject(
-        USER_FILES_BUCKET_NAME,
-        `${projectId0}/${fileId0}`
-      )
+      mockFilestore.deleteObject(projectId0, fileId0)
       const t0 = Date.now()
-      const { stats, result } = await tryRunScript([], {
-        RETRIES: '10',
-        RETRY_DELAY_MS: '1000',
-      })
+      const { stats, result } = await tryRunScript([
+        '--skip-hashed-files',
+        '--retries=10',
+        '--retry-delay-ms=1000',
+      ])
       const t1 = Date.now()
       expectNotFoundError(result, 'failed to process file')
       expect(result.status).to.equal(1)
@@ -1194,8 +958,6 @@ describe('back_fill_file_hash script', function () {
           ...STATS_ALL_ZERO,
           filesFailed: 1,
           readFromGCSIngress: -24,
-          writeToAWSCount: -1,
-          writeToAWSEgress: -28,
           writeToGCSCount: -1,
           writeToGCSEgress: -24,
         })
@@ -1205,20 +967,16 @@ describe('back_fill_file_hash script', function () {
         'failed to process file, trying again'
       )
       expect(t1 - t0).to.be.below(10_000)
+      expect(result.stderr).to.include(
+        'The binary files migration failed, see above.'
+      )
     })
 
     it('should retry on error', async function () {
-      await FILESTORE_PERSISTOR.deleteObject(
-        USER_FILES_BUCKET_NAME,
-        `${projectId0}/${fileId0}`
-      )
+      mockFilestore.deleteObject(projectId0, fileId0)
       const restoreFileAfter5s = async () => {
         await setTimeout(5_000)
-        await FILESTORE_PERSISTOR.sendStream(
-          USER_FILES_BUCKET_NAME,
-          `${projectId0}/${fileId0}`,
-          Stream.Readable.from([fileId0.toString()])
-        )
+        mockFilestore.addFile(projectId0, fileId0, fileId0.toString())
       }
       // use Promise.allSettled to ensure the above sendStream call finishes before this test completes
       const [
@@ -1226,11 +984,12 @@ describe('back_fill_file_hash script', function () {
           value: { stats, result },
         },
       ] = await Promise.allSettled([
-        tryRunScript([], {
-          RETRY_DELAY_MS: '100',
-          RETRIES: '60',
-          RETRY_FILESTORE_404: 'true', // 404s are the easiest to simulate in tests
-        }),
+        tryRunScript([
+          '--skip-hashed-files',
+          '--retries=60',
+          '--retry-delay-ms=1000',
+          '--retry-filestore-404',
+        ]),
         restoreFileAfter5s(),
       ])
       expectNotFoundError(result, 'failed to process file, trying again')
@@ -1252,9 +1011,7 @@ describe('back_fill_file_hash script', function () {
     let output
     before('prepare environment', prepareEnvironment)
     before('run script', async function () {
-      output = await runScript([], {
-        CONCURRENCY: '1',
-      })
+      output = await runScript(['--skip-hashed-files', '--concurrency=1'])
     })
 
     /**
@@ -1276,6 +1033,14 @@ describe('back_fill_file_hash script', function () {
 
     it('should print stats', function () {
       expect(output.stats).deep.equal(STATS_ALL)
+    })
+    it('should print a warning message', () => {
+      expect(output.result.stderr).to.include(
+        'The binary files migration succeeded on a subset of files'
+      )
+    })
+    it('should not create the migration', () => {
+      expect(output.migrationCreated).to.equal(false)
     })
     it('should have logged the bad file-tree', function () {
       expectBadFileTreeMessage(
@@ -1321,32 +1086,115 @@ describe('back_fill_file_hash script', function () {
     let output1, output2
     before('prepare environment', prepareEnvironment)
     before('run script without hashed files', async function () {
-      output1 = await runScript([], {})
+      output1 = await runScript(['--skip-hashed-files'])
     })
     before('run script with hashed files', async function () {
-      output2 = await runScript(['--processHashedFiles=true'], {})
+      output2 = await runScript([])
     })
-    it('should print stats', function () {
+    it('should print stats for the first run without hashed files', function () {
       expect(output1.stats).deep.equal(STATS_ALL)
+    })
+    it('should print stats for the hashed files run', function () {
       expect(output2.stats).deep.equal({
         ...STATS_FILES_HASHED_EXTRA,
         projects: 10,
-        blobs: 13,
-        backedUpBlobs: 13,
+        blobs: 10,
         badFileTrees: 4,
-        mongoUpdates: 3,
       })
     })
+    it('should print a success message', () => {
+      expect(output2.result.stderr).to.include(
+        'The binary files migration succeeded.'
+      )
+    })
+    it('should create the migration', () => {
+      expect(output2.migrationCreated).to.equal(true)
+    })
     commonAssertions(true)
+  })
+  describe('report mode', function () {
+    let output
+    before('prepare environment', prepareEnvironment)
+    before('run script', async function () {
+      output = await rawRunScript(['--report'])
+    })
+    it('should print the report', () => {
+      expect(output.status).to.equal(0)
+      expect(output.stdout).to.equal(`\
+Current status:
+- Total number of projects: 10
+- Total number of deleted projects: 5
+Sampling 1000 projects to estimate progress...
+Sampled stats for projects:
+- Sampled projects: 9 (90% of all projects)
+- Sampled projects with all hashes present: 5
+- Percentage of projects that need back-filling hashes: 44% (estimated)
+- Sampled projects have 11 files that need to be checked against the full project history system.
+- Sampled projects have 3 files that need to be uploaded to the full project history system (estimating 27% of all files).
+Sampled stats for deleted projects:
+- Sampled deleted projects: 4 (80% of all deleted projects)
+- Sampled deleted projects with all hashes present: 3
+- Percentage of deleted projects that need back-filling hashes: 25% (estimated)
+- Sampled deleted projects have 2 files that need to be checked against the full project history system.
+- Sampled deleted projects have 1 files that need to be uploaded to the full project history system (estimating 50% of all files).
+`)
+    })
+  })
+
+  describe('full run in dry-run mode', function () {
+    let output
+    let projectRecordsBefore
+    let deletedProjectRecordsBefore
+    before('prepare environment', prepareEnvironment)
+    before(async function () {
+      projectRecordsBefore = await projectsCollection.find({}).toArray()
+      deletedProjectRecordsBefore = await deletedProjectsCollection
+        .find({})
+        .toArray()
+    })
+    before('run script', async function () {
+      output = await runScript(['--dry-run', '--concurrency=1'], false)
+    })
+
+    it('should print stats for dry-run mode', function () {
+      // Compute the stats for running the script without dry-run mode.
+      const originalStats = sumStats(STATS_ALL, {
+        ...STATS_FILES_HASHED_EXTRA,
+        readFromGCSCount: 30,
+        readFromGCSIngress: 72,
+        mongoUpdates: 0,
+        filesWithHash: 3,
+      })
+      // For a dry-run mode, we expect the stats to be zero except for the
+      // count of projects, blobs, bad file trees, duplicated files
+      // and files with/without hash.  All the other stats such as mongoUpdates
+      // and writeToGCSCount, etc should be zero.
+      const expectedDryRunStats = {
+        ...STATS_ALL_ZERO,
+        projects: originalStats.projects,
+        blobs: originalStats.blobs,
+        badFileTrees: originalStats.badFileTrees,
+        filesDuplicated: originalStats.filesDuplicated,
+        filesWithHash: originalStats.filesWithHash,
+        filesWithoutHash: originalStats.filesWithoutHash,
+      }
+      expect(output.stats).deep.equal(expectedDryRunStats)
+    })
+    it('should not update mongo', async function () {
+      expect(await projectsCollection.find({}).toArray()).to.deep.equal(
+        projectRecordsBefore
+      )
+      expect(await deletedProjectsCollection.find({}).toArray()).to.deep.equal(
+        deletedProjectRecordsBefore
+      )
+    })
   })
 
   describe('full run CONCURRENCY=10', function () {
     let output
     before('prepare environment', prepareEnvironment)
     before('run script', async function () {
-      output = await runScript([], {
-        CONCURRENCY: '10',
-      })
+      output = await runScript(['--skip-hashed-files', '--concurrency=10'])
     })
     it('should print stats', function () {
       expect(output.stats).deep.equal(STATS_ALL)
@@ -1354,13 +1202,14 @@ describe('back_fill_file_hash script', function () {
     commonAssertions()
   })
 
-  describe('full run STREAM_HIGH_WATER_MARK=1MB', function () {
+  describe('full run STREAM_HIGH_WATER_MARK=64kiB', function () {
     let output
     before('prepare environment', prepareEnvironment)
     before('run script', async function () {
-      output = await runScript([], {
-        STREAM_HIGH_WATER_MARK: (1024 * 1024).toString(),
-      })
+      output = await runScript([
+        '--skip-hashed-files',
+        `--stream-high-water-mark=${64 * 1024}`,
+      ])
     })
     it('should print stats', function () {
       expect(output.stats).deep.equal(STATS_ALL)
@@ -1372,11 +1221,17 @@ describe('back_fill_file_hash script', function () {
     let output
     before('prepare environment', prepareEnvironment)
     before('run script', async function () {
-      output = await runScript(['--processHashedFiles=true'], {})
+      output = await runScript([])
     })
     it('should print stats', function () {
       expect(output.stats).deep.equal(
-        sumStats(STATS_ALL, STATS_FILES_HASHED_EXTRA)
+        sumStats(STATS_ALL, {
+          ...STATS_FILES_HASHED_EXTRA,
+          readFromGCSCount: 3,
+          readFromGCSIngress: 72,
+          mongoUpdates: 0,
+          filesWithHash: 3,
+        })
       )
     })
     commonAssertions(true)
@@ -1395,57 +1250,13 @@ describe('back_fill_file_hash script', function () {
     })
     let output
     before('run script', async function () {
-      output = await runScript([], {
-        CONCURRENCY: '1',
-      })
+      output = await runScript(['--skip-hashed-files', '--concurrency=1'])
     })
 
     it('should print stats', function () {
       expect(output.stats).deep.equal(
         sumStats(STATS_ALL, {
           ...STATS_ALL_ZERO,
-          // one remote deduplicate
-          deduplicatedWriteToAWSRemoteCount: 1,
-          deduplicatedWriteToAWSRemoteEgress: 28,
-          writeToAWSEgress: -28, // subtract skipped egress
-        })
-      )
-    })
-    commonAssertions()
-  })
-
-  describe('with something in the bucket and marked as processed', function () {
-    before('prepare environment', prepareEnvironment)
-    before('create a file in s3', async function () {
-      await backupPersistor.sendStream(
-        projectBlobsBucket,
-        makeProjectKey(historyId0, hashTextBlob0),
-        Stream.Readable.from([contentTextBlob0]),
-        { contentLength: contentTextBlob0.byteLength }
-      )
-      await backedUpBlobs.insertMany([
-        {
-          _id: projectId0,
-          blobs: [binaryForGitBlobHash(hashTextBlob0)],
-        },
-      ])
-    })
-    let output
-    before('run script', async function () {
-      output = await runScript([], {
-        CONCURRENCY: '1',
-      })
-    })
-
-    it('should print stats', function () {
-      expect(output.stats).deep.equal(
-        sumStats(STATS_ALL, {
-          ...STATS_ALL_ZERO,
-          backedUpBlobs: 1,
-          writeToAWSCount: -1,
-          writeToAWSEgress: -27,
-          readFromGCSCount: -1,
-          readFromGCSIngress: -7,
         })
       )
     })
@@ -1458,24 +1269,53 @@ describe('back_fill_file_hash script', function () {
     let outputPart0, outputPart1
     before('prepare environment', prepareEnvironment)
     before('run script on part 0', async function () {
-      outputPart0 = await runScript([`--BATCH_RANGE_END=${edge}`], {
-        CONCURRENCY: '1',
-      })
+      outputPart0 = await runScript([
+        '--skip-hashed-files',
+        `--BATCH_RANGE_END=${edge}`,
+        '--concurrency=1',
+      ])
     })
     before('run script on part 1', async function () {
-      outputPart1 = await runScript([`--BATCH_RANGE_START=${edge}`], {
-        CONCURRENCY: '1',
-      })
+      outputPart1 = await runScript([
+        '--skip-hashed-files',
+        `--BATCH_RANGE_START=${edge}`,
+        '--concurrency=1',
+      ])
     })
 
-    it('should print stats', function () {
+    it('should print stats for part 0', function () {
       expect(outputPart0.stats).to.deep.equal(STATS_UP_TO_PROJECT1)
+    })
+    it('should print stats for part 1', function () {
       expect(outputPart1.stats).to.deep.equal(STATS_UP_FROM_PROJECT1_ONWARD)
     })
+    it('should warn about split run', () => {
+      expect(outputPart0.result.stderr).to.include(
+        'The binary files migration succeeded on a subset of files'
+      )
+      expect(outputPart1.result.stderr).to.include(
+        'The binary files migration succeeded on a subset of files'
+      )
+    })
     commonAssertions()
+
+    describe('with a full run afterwards', () => {
+      let output
+      before('run script', async function () {
+        output = await runScript([])
+      })
+      it('should print stats', function () {
+        expect(output.stats).to.deep.equal(
+          sumStats(statsForRerun(false), STATS_FILES_HASHED_EXTRA)
+        )
+      })
+      it('should create the migration', () => {
+        expect(output.migrationCreated).to.equal(true)
+      })
+    })
   })
 
-  describe('projectIds from file', () => {
+  describe('projectIds from file', function () {
     const path0 = '/tmp/project-ids-0.txt'
     const path1 = '/tmp/project-ids-1.txt'
     before('prepare environment', prepareEnvironment)
@@ -1508,10 +1348,16 @@ describe('back_fill_file_hash script', function () {
 
     let outputPart0, outputPart1
     before('run script on part 0', async function () {
-      outputPart0 = await runScript([`--projectIdsFrom=${path0}`])
+      outputPart0 = await runScript([
+        '--skip-hashed-files',
+        `--from-file=${path0}`,
+      ])
     })
     before('run script on part 1', async function () {
-      outputPart1 = await runScript([`--projectIdsFrom=${path1}`])
+      outputPart1 = await runScript([
+        '--skip-hashed-files',
+        `--from-file=${path1}`,
+      ])
     })
 
     /**
@@ -1542,6 +1388,10 @@ describe('back_fill_file_hash script', function () {
     it('should print stats', function () {
       expect(outputPart0.stats).to.deep.equal(STATS_UP_TO_PROJECT1)
       expect(outputPart1.stats).to.deep.equal(STATS_UP_FROM_PROJECT1_ONWARD)
+    })
+    it('should not create the migration ', () => {
+      expect(outputPart0.migrationCreated).to.equal(false)
+      expect(outputPart1.migrationCreated).to.equal(false)
     })
     commonAssertions()
   })

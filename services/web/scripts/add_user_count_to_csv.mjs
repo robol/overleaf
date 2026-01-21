@@ -6,9 +6,10 @@ import fs from 'node:fs'
 // eslint-disable-next-line import/no-unresolved
 import * as csv from 'csv/sync'
 import minimist from 'minimist'
-import UserGetter from '../app/src/Features/User/UserGetter.js'
-import { db } from '../app/src/infrastructure/mongodb.js'
+import UserGetter from '../app/src/Features/User/UserGetter.mjs'
+import { db } from '../app/src/infrastructure/mongodb.mjs'
 import _ from 'lodash'
+import { scriptRunner } from './lib/ScriptRunner.mjs'
 
 const argv = minimist(process.argv.slice(2), {
   string: ['domain', 'output'],
@@ -86,7 +87,7 @@ async function getUsersByHostnameWithSubdomain(domain, projection) {
 }
 
 try {
-  await main()
+  await scriptRunner(main)
   console.log('Done')
   process.exit(0)
 } catch (error) {

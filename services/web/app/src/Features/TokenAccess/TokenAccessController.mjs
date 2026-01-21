@@ -1,27 +1,28 @@
-import AuthenticationController from '../Authentication/AuthenticationController.js'
-import SessionManager from '../Authentication/SessionManager.js'
-import TokenAccessHandler from './TokenAccessHandler.js'
+import AuthenticationController from '../Authentication/AuthenticationController.mjs'
+import SessionManager from '../Authentication/SessionManager.mjs'
+import TokenAccessHandler from './TokenAccessHandler.mjs'
 import Errors from '../Errors/Errors.js'
 import logger from '@overleaf/logger'
 import OError from '@overleaf/o-error'
 import { expressify } from '@overleaf/promise-utils'
-import AuthorizationManager from '../Authorization/AuthorizationManager.js'
-import PrivilegeLevels from '../Authorization/PrivilegeLevels.js'
-import ProjectAuditLogHandler from '../Project/ProjectAuditLogHandler.js'
+import AuthorizationManager from '../Authorization/AuthorizationManager.mjs'
+import PrivilegeLevels from '../Authorization/PrivilegeLevels.mjs'
+import ProjectAuditLogHandler from '../Project/ProjectAuditLogHandler.mjs'
 import CollaboratorsInviteHandler from '../Collaborators/CollaboratorsInviteHandler.mjs'
-import CollaboratorsHandler from '../Collaborators/CollaboratorsHandler.js'
-import EditorRealTimeController from '../Editor/EditorRealTimeController.js'
-import CollaboratorsGetter from '../Collaborators/CollaboratorsGetter.js'
-import ProjectGetter from '../Project/ProjectGetter.js'
-import AsyncFormHelper from '../Helpers/AsyncFormHelper.js'
-import AnalyticsManager from '../Analytics/AnalyticsManager.js'
-import { canRedirectToAdminDomain } from '../Helpers/AdminAuthorizationHelper.js'
-import { getSafeAdminDomainRedirect } from '../Helpers/UrlHelper.js'
-import UserGetter from '../User/UserGetter.js'
+import CollaboratorsHandler from '../Collaborators/CollaboratorsHandler.mjs'
+import EditorRealTimeController from '../Editor/EditorRealTimeController.mjs'
+import CollaboratorsGetter from '../Collaborators/CollaboratorsGetter.mjs'
+import ProjectGetter from '../Project/ProjectGetter.mjs'
+import AsyncFormHelper from '../Helpers/AsyncFormHelper.mjs'
+import AnalyticsManager from '../Analytics/AnalyticsManager.mjs'
+import AdminAuthorizationHelper from '../Helpers/AdminAuthorizationHelper.mjs'
+import UrlHelper from '../Helpers/UrlHelper.mjs'
+import UserGetter from '../User/UserGetter.mjs'
 import Settings from '@overleaf/settings'
-import LimitationsManager from '../Subscription/LimitationsManager.js'
-import SplitTestHandler from '../SplitTests/SplitTestHandler.js'
+import LimitationsManager from '../Subscription/LimitationsManager.mjs'
 
+const { getSafeAdminDomainRedirect } = UrlHelper
+const { canRedirectToAdminDomain } = AdminAuthorizationHelper
 const orderedPrivilegeLevels = [
   PrivilegeLevels.NONE,
   PrivilegeLevels.READ_ONLY,
@@ -67,7 +68,7 @@ async function _handleV1Project(token, userId) {
       userId
     )
     // This should not happen anymore, but it does show
-    // a nice "contact support" message, so it can stay
+    // a nice "contact Support" message, so it can stay
     if (!docInfo) {
       return { v1Import: { status: 'cannotImport' } }
     }
@@ -112,13 +113,6 @@ async function tokenAccessPage(req, res, next) {
       }
     }
 
-    // Populates splitTestVariants with a value for the split test name and allows
-    // Pug to read it
-    await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'misc-b2c-pages-bs5'
-    )
     res.render('project/token/access-react', {
       postUrl: makePostUrl(token),
     })
@@ -347,7 +341,12 @@ async function grantTokenAccessReadAndWrite(req, res, next) {
       }
     )
     AnalyticsManager.recordEventForUserInBackground(userId, 'project-joined', {
-      mode: pendingEditor ? 'read-only' : 'read-write',
+      role: pendingEditor
+        ? PrivilegeLevels.READ_ONLY
+        : PrivilegeLevels.READ_AND_WRITE,
+      ownerId: project.owner_ref.toString(),
+      source: 'link-sharing',
+      mode: pendingEditor ? 'view' : 'edit',
       projectId: project._id.toString(),
       ...(pendingEditor && { pendingEditor: true }),
     })
@@ -450,7 +449,8 @@ async function grantTokenAccessReadOnly(req, res, next) {
 
     await TokenAccessHandler.promises.addReadOnlyUserToProject(
       userId,
-      project._id
+      project._id,
+      project.owner_ref
     )
 
     return res.json({
@@ -502,7 +502,6 @@ async function sharingUpdatesConsent(req, res, next) {
     page: req.path,
     name: 'link-sharing-collaborator',
   })
-  await SplitTestHandler.promises.getAssignment(req, res, 'bs5-misc-pages-core')
   res.render('project/token/sharing-updates', {
     projectId,
   })

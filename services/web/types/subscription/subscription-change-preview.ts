@@ -1,16 +1,27 @@
+export type ImmediateCharge = {
+  subtotal: number
+  tax: number
+  total: number
+  discount: number
+  lineItems: {
+    planCode: string | null | undefined
+    description: string
+    subtotal: number
+    discount: number
+    tax: number
+    isAiAssist?: boolean
+  }[]
+}
+
 export type SubscriptionChangePreview = {
   change: SubscriptionChangeDescription
   currency: string
-  paymentMethod: string
+  paymentMethod: string | undefined
+  netTerms: number
   nextPlan: {
     annual: boolean
   }
-  immediateCharge: {
-    subtotal: number
-    tax: number
-    total: number
-    discount: number
-  }
+  immediateCharge: ImmediateCharge
   nextInvoice: {
     date: string
     plan: {

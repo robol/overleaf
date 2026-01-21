@@ -102,9 +102,6 @@ export const Error = () => {
 }
 
 export default {
-  title: 'Project List / New Project Button',
+  title: 'Project List / New project Button',
   component: NewProjectButton,
-  parameters: {
-    bootstrap5: true,
-  },
 }

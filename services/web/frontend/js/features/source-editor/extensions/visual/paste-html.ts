@@ -45,34 +45,16 @@ export const pasteHtml = [
           return false
         }
 
-        // convert the HTML to LaTeX
         try {
-          const parser = new DOMParser()
-          const { documentElement } = parser.parseFromString(html, 'text/html')
+          const latex = convertHtmlStringToLatex(
+            html,
+            clipboardData.files.length
+          )
 
-          // fall back to creating a figure when there's an image on the clipoard,
-          // unless the HTML indicates that it came from an Office application
-          // (which also puts an image on the clipboard)
-          if (
-            clipboardData.files.length > 0 &&
-            !hasProgId(documentElement) &&
-            !isOnlyTable(documentElement)
-          ) {
+          // if there's no latex conversion, use plain text version
+          if (latex === null) {
             return false
           }
-
-          const bodyElement = documentElement.querySelector('body')
-          // DOMParser should always create a body element, so this is mostly for TypeScript
-          if (!bodyElement) {
-            return false
-          }
-
-          // if the only content is in a code block, use the plain text version
-          if (onlyCode(bodyElement)) {
-            return false
-          }
-
-          const latex = htmlToLaTeX(bodyElement)
 
           // if there's no formatting, use the plain text version
           if (latex === text && clipboardData.files.length === 0) {
@@ -94,6 +76,37 @@ export const pasteHtml = [
   ),
   pastedContent,
 ]
+
+export function convertHtmlStringToLatex(
+  html: string,
+  filesLength: number
+): string | null {
+  const parser = new DOMParser()
+  const { documentElement } = parser.parseFromString(html, 'text/html')
+
+  // Do not process HTML as LaTeX when the clipboard contains files (e.g. images),
+  // unless the HTML is from an Office application or is a table-only selection.
+  if (
+    filesLength > 0 &&
+    !hasProgId(documentElement) &&
+    !isOnlyTable(documentElement)
+  ) {
+    return null
+  }
+
+  const bodyElement = documentElement.querySelector('body')
+  // DOMParser should always create a body element, so this is mostly for TypeScript
+  if (!bodyElement) {
+    return null
+  }
+
+  // If the only content is a code block, skip latex conversion
+  if (onlyCode(bodyElement)) {
+    return null
+  }
+
+  return htmlToLaTeX(bodyElement)
+}
 
 const removeUnwantedElements = (
   documentElement: HTMLElement,
@@ -487,6 +500,7 @@ const tabular = (element: HTMLTableElement) => {
     alignment: string
     borderLeft: boolean
     borderRight: boolean
+    inferred?: boolean
   }> = []
 
   const rows = element.querySelectorAll('tr')
@@ -500,16 +514,29 @@ const tabular = (element: HTMLTableElement) => {
 
     for (const cell of cells) {
       // NOTE: reading the alignment and borders from the first cell definition in each column
-      if (definitions[index] === undefined) {
-        const { textAlign, borderLeftStyle, borderRightStyle } = cell.style
+      const colspan = Number(cell.getAttribute('colspan') ?? 1)
+      const { textAlign, borderLeftStyle, borderRightStyle } = cell.style
 
-        definitions[index] = {
-          alignment: textAlign,
-          borderLeft: visibleBorderStyle(borderLeftStyle),
-          borderRight: visibleBorderStyle(borderRightStyle),
+      for (let i = 0; i < colspan; i++) {
+        if (
+          // There's no definition for this column
+          definitions[index + i] === undefined ||
+          // There's an inferred definition of the column, and we're a cell that
+          // can accurately represent the whole column, since we're not a
+          // multicolumn cell ourselves.
+          (colspan === 1 && definitions[index + i].inferred)
+        ) {
+          definitions[index + i] = {
+            alignment: textAlign,
+            borderLeft: visibleBorderStyle(borderLeftStyle),
+            borderRight: visibleBorderStyle(borderRightStyle),
+            // We can't trust the details from a multicolumn cell to represent the
+            // whole column, so we mark it as inferred.
+            inferred: colspan > 1,
+          }
         }
       }
-      index += Number(cell.getAttribute('colspan') ?? 1)
+      index += colspan
     }
   }
 
@@ -614,9 +641,12 @@ const nextRowHasBorderStyle = (
 }
 
 const startMulticolumn = (element: HTMLTableCellElement): string => {
+  const { textAlign, borderLeftStyle, borderRightStyle } = element.style
   const colspan = Number(element.getAttribute('colspan') || 1)
-  const alignment = cellAlignment.get(element.style.textAlign) ?? 'l'
-  return `\\multicolumn{${colspan}}{${alignment}}{`
+  const alignment = cellAlignment.get(textAlign) ?? 'l'
+  const borderLeft = visibleBorderStyle(borderLeftStyle)
+  const borderRight = visibleBorderStyle(borderRightStyle)
+  return `\\multicolumn{${colspan}}{${borderLeft ? '|' : ''}${alignment}${borderRight ? '|' : ''}}{`
 }
 
 const startMultirow = (element: HTMLTableCellElement): string => {

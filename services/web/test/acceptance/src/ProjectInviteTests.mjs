@@ -3,9 +3,8 @@ import Async from 'async'
 import User from './helpers/User.mjs'
 import settings from '@overleaf/settings'
 import CollaboratorsEmailHandler from '../../../app/src/Features/Collaborators/CollaboratorsEmailHandler.mjs'
-import CollaboratorsInviteHelper from '../../../app/src/Features/Collaborators/CollaboratorsInviteHelper.js'
-import Features from '../../../app/src/infrastructure/Features.js'
-import cheerio from 'cheerio'
+import CollaboratorsInviteHelper from '../../../app/src/Features/Collaborators/CollaboratorsInviteHelper.mjs'
+import Features from '../../../app/src/infrastructure/Features.mjs'
 import sinon from 'sinon'
 
 let generateTokenSpy
@@ -200,7 +199,7 @@ const expectInvitePage = (user, link, callback) => {
   tryFollowInviteLink(user, link, (err, response, body) => {
     expect(err).not.to.exist
     expect(response.statusCode).to.equal(200)
-    expect(body).to.match(/<title>Project Invite - .*<\/title>/)
+    expect(body).to.match(/<title[^>]*>Project Invite - .*<\/title>/)
     callback()
   })
 }
@@ -210,7 +209,7 @@ const expectInvalidInvitePage = (user, link, callback) => {
   tryFollowInviteLink(user, link, (err, response, body) => {
     expect(err).not.to.exist
     expect(response.statusCode).to.equal(404)
-    expect(body).to.match(/<title>Invalid Invite - .*<\/title>/)
+    expect(body).to.match(/<title[^>]*>Invalid Invite - .*<\/title>/)
     callback()
   })
 }
@@ -237,7 +236,9 @@ const expectLoginPage = (user, callback) => {
   tryFollowLoginLink(user, '/login', (err, response, body) => {
     expect(err).not.to.exist
     expect(response.statusCode).to.equal(200)
-    expect(body).to.match(/<title>(Login|Log in to Overleaf) - .*<\/title>/)
+    expect(body).to.match(
+      /<title[^>]*>(Login|Log in to Overleaf) - .*<\/title>/
+    )
     callback()
   })
 }
@@ -259,11 +260,6 @@ const expectRegistrationRedirectToInvite = (user, link, callback) => {
       user.request.get('/registration/onboarding', (err, response) => {
         if (err) return callback(err)
         expect(response.statusCode).to.equal(200)
-        const dom = cheerio.load(response.body)
-        const skipUrl = dom('meta[name="ol-skipUrl"]')[0].attribs.content
-        expect(new URL(skipUrl, settings.siteUrl).href).to.equal(
-          new URL(link, settings.siteUrl).href
-        )
         callback()
       })
     } else {
@@ -379,8 +375,10 @@ describe('ProjectInviteTests', function () {
                 return done(err)
               }
               expect(response.statusCode).to.equal(400)
-              expect(response.body.validation.body.message).to.equal(
-                '"email" must be a string'
+              expect(body.details).to.have.lengthOf(1)
+              expect(response.body.details[0].path).to.eql(['body', 'email'])
+              expect(response.body.details[0].message).to.equal(
+                'Invalid input: expected string, received object'
               )
               done()
             }
@@ -406,8 +404,13 @@ describe('ProjectInviteTests', function () {
                 return done(err)
               }
               expect(response.statusCode).to.equal(400)
-              expect(response.body.validation.body.message).to.equal(
-                '"privileges" must be one of [readOnly, readAndWrite, review]'
+              expect(body.details).to.have.lengthOf(1)
+              expect(response.body.details[0].path).to.eql([
+                'body',
+                'privileges',
+              ])
+              expect(response.body.details[0].message).to.equal(
+                'Invalid option: expected one of "readOnly"|"readAndWrite"|"review"'
               )
               done()
             }

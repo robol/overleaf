@@ -1,15 +1,14 @@
 import { useTranslation } from 'react-i18next'
-import { FormControl } from 'react-bootstrap'
 import * as eventTracking from '../../../infrastructure/event-tracking'
 import classnames from 'classnames'
 import { Tag } from '../../../../../app/src/Features/Tags/types'
 import { MergeAndOverride } from '../../../../../types/utils'
 import { Filter } from '../context/project-list-context'
 import { isSmallDevice } from '../../../infrastructure/event-tracking'
-import OLForm from '@/features/ui/components/ol/ol-form'
-import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
-import OLCol from '@/features/ui/components/ol/ol-col'
-import OLFormControl from '@/features/ui/components/ol/ol-form-control'
+import OLForm from '@/shared/components/ol/ol-form'
+import OLFormGroup from '@/shared/components/ol/ol-form-group'
+import OLCol from '@/shared/components/ol/ol-col'
+import OLFormControl from '@/shared/components/ol/ol-form-control'
 import MaterialIcon from '@/shared/components/material-icon'
 
 type SearchFormOwnProps = {
@@ -57,11 +56,9 @@ function SearchForm({
   }
   const placeholder = `${placeholderMessage}…`
 
-  const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement & Omit<FormControl, keyof HTMLInputElement>
-    >
-  ) => {
+  const handleChange: React.ComponentProps<
+    typeof OLFormControl
+  >['onChange'] = e => {
     eventTracking.sendMB('project-list-page-interaction', {
       action: 'search',
       isSmallDevice,

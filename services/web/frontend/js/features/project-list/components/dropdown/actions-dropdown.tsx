@@ -1,11 +1,10 @@
 import { useTranslation } from 'react-i18next'
-import { Spinner } from 'react-bootstrap-5'
 import {
   Dropdown,
   DropdownItem,
   DropdownMenu,
   DropdownToggle,
-} from '@/features/ui/components/bootstrap-5/dropdown-menu'
+} from '@/shared/components/dropdown/dropdown-menu'
 import CopyProjectButton from '../table/cells/action-buttons/copy-project-button'
 import DownloadProjectButton from '../table/cells/action-buttons/download-project-button'
 import ArchiveProjectButton from '../table/cells/action-buttons/archive-project-button'
@@ -18,6 +17,7 @@ import { Project } from '../../../../../../types/project/dashboard/api'
 import CompileAndDownloadProjectPDFButton from '../table/cells/action-buttons/compile-and-download-project-pdf-button'
 import RenameProjectButton from '../table/cells/action-buttons/rename-project-button'
 import MaterialIcon from '@/shared/components/material-icon'
+import OLSpinner from '@/shared/components/ol/ol-spinner'
 
 type ActionDropdownProps = {
   project: Project
@@ -89,13 +89,9 @@ function ActionsDropdown({ project }: ActionDropdownProps) {
                 }}
                 leadingIcon={
                   pendingCompile ? (
-                    <Spinner
-                      animation="border"
-                      aria-hidden="true"
-                      as="span"
-                      className="dropdown-item-leading-icon spinner"
+                    <OLSpinner
                       size="sm"
-                      role="status"
+                      className="dropdown-item-leading-icon spinner"
                     />
                   ) : (
                     'picture_as_pdf'

@@ -2,13 +2,17 @@ import { FC } from 'react'
 import SplitTestBadge from '@/shared/components/split-test-badge'
 import MaterialIcon from '@/shared/components/material-icon'
 import { useTranslation } from 'react-i18next'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
 
-export const PanelHeading: FC<{
-  title: string
-  splitTestName?: string
-  children?: React.ReactNode
-  handleClose(): void
-}> = ({ title, splitTestName, children, handleClose }) => {
+// TODO ide-redesign-cleanup: Remove this component and only use RailPanelHeader
+export const PanelHeading: FC<
+  React.PropsWithChildren<{
+    title: string
+    splitTestName?: string
+    children?: React.ReactNode
+    handleClose(): void
+  }>
+> = ({ title, splitTestName, children, handleClose }) => {
   const { t } = useTranslation()
 
   return (
@@ -24,15 +28,20 @@ export const PanelHeading: FC<{
       </div>
 
       {children}
-
-      <button
-        type="button"
-        className="btn panel-heading-close-button"
-        aria-label={t('close')}
-        onClick={handleClose}
+      <OLTooltip
+        id="close-panel"
+        description={t('close')}
+        overlayProps={{ placement: 'bottom' }}
       >
-        <MaterialIcon type="close" />
-      </button>
+        <button
+          type="button"
+          className="btn panel-heading-close-button"
+          aria-label={t('close')}
+          onClick={handleClose}
+        >
+          <MaterialIcon type="close" />
+        </button>
+      </OLTooltip>
     </div>
   )
 }

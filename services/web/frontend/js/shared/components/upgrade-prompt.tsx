@@ -1,11 +1,11 @@
-import OLBadge from '@/features/ui/components/ol/ol-badge'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import OLCloseButton from '@/features/ui/components/ol/ol-close-button'
-import OLCol from '@/features/ui/components/ol/ol-col'
-import OLRow from '@/features/ui/components/ol/ol-row'
+import OLBadge from '@/shared/components/ol/ol-badge'
+import OLButton from '@/shared/components/ol/ol-button'
+import OLCloseButton from '@/shared/components/ol/ol-close-button'
+import OLCol from '@/shared/components/ol/ol-col'
+import OLRow from '@/shared/components/ol/ol-row'
 import MaterialIcon from '@/shared/components/material-icon'
 import { PropsWithChildren } from 'react'
-import { Container } from 'react-bootstrap-5'
+import { Container } from 'react-bootstrap'
 import { Trans, useTranslation } from 'react-i18next'
 
 type IconListItemProps = PropsWithChildren<{
@@ -104,7 +104,7 @@ export function UpgradePrompt({
             <OLRow>
               <ul className="upgrade-prompt-list">
                 <IconListItem icon="hourglass_top">
-                  {t('12x_more_compile_time')}
+                  {t('24x_more_compile_time')}
                 </IconListItem>
                 <IconListItem icon="group_add">
                   {t('collabs_per_proj', { collabcount: isStudent ? 6 : 10 })}

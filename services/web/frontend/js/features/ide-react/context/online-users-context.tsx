@@ -7,10 +7,8 @@ import {
   useMemo,
   useState,
 } from 'react'
-import { ReactScopeValueStore } from '@/features/ide-react/scope-value-store/react-scope-value-store'
 import { useIdeReactContext } from '@/features/ide-react/context/ide-react-context'
 import { useConnectionContext } from '@/features/ide-react/context/connection-context'
-import useScopeValue from '@/shared/hooks/use-scope-value'
 import { CursorPosition } from '@/features/ide-react/types/cursor-position'
 import { omit } from 'lodash'
 import { Doc } from '../../../../../types/doc'
@@ -20,7 +18,7 @@ import useSocketListener from '@/features/ide-react/hooks/use-socket-listener'
 import { debugConsole } from '@/utils/debugging'
 import { IdeEvents } from '@/features/ide-react/create-ide-event-emitter'
 import { getHueForUserId } from '@/shared/utils/colors'
-import { useEditorManagerContext } from '@/features/ide-react/context/editor-manager-context'
+import { useEditorOpenDocContext } from '@/features/ide-react/context/editor-open-doc-context'
 
 export type OnlineUser = {
   id: string
@@ -63,37 +61,24 @@ type OnlineUsersContextValue = {
   onlineUsersCount: number
 }
 
-export function populateOnlineUsersScope(store: ReactScopeValueStore) {
-  store.set('onlineUsers', {})
-  store.set('onlineUserCursorHighlights', {})
-  store.set('onlineUsersArray', [])
-  store.set('onlineUsersCount', 0)
-}
+export const OnlineUsersContext = createContext<
+  OnlineUsersContextValue | undefined
+>(undefined)
 
-const OnlineUsersContext = createContext<OnlineUsersContextValue | undefined>(
-  undefined
-)
-
-export const OnlineUsersProvider: FC = ({ children }) => {
+export const OnlineUsersProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
   const { eventEmitter } = useIdeReactContext()
   const { socket } = useConnectionContext()
-  const { currentDocumentId } = useEditorManagerContext()
+  const { currentDocumentId } = useEditorOpenDocContext()
   const { fileTreeData } = useFileTreeData()
 
-  const [onlineUsers, setOnlineUsers] =
-    useScopeValue<OnlineUsersContextValue['onlineUsers']>('onlineUsers')
-  const [onlineUserCursorHighlights, setOnlineUserCursorHighlights] =
-    useScopeValue<OnlineUsersContextValue['onlineUserCursorHighlights']>(
-      'onlineUserCursorHighlights'
-    )
-  const [onlineUsersArray, setOnlineUsersArray] =
-    useScopeValue<OnlineUsersContextValue['onlineUsersArray']>(
-      'onlineUsersArray'
-    )
-  const [onlineUsersCount, setOnlineUsersCount] =
-    useScopeValue<OnlineUsersContextValue['onlineUsersCount']>(
-      'onlineUsersCount'
-    )
+  const [onlineUsers, setOnlineUsers] = useState<Record<string, OnlineUser>>({})
+  const [onlineUserCursorHighlights, setOnlineUserCursorHighlights] = useState<
+    Record<string, CursorHighlight[]>
+  >({})
+  const [onlineUsersArray, setOnlineUsersArray] = useState<OnlineUser[]>([])
+  const [onlineUsersCount, setOnlineUsersCount] = useState(0)
 
   const [currentPosition, setCurrentPosition] = useState<CursorPosition | null>(
     null
@@ -110,7 +95,7 @@ export const OnlineUsersProvider: FC = ({ children }) => {
       for (const [clientId, user] of Object.entries(onlineUsers)) {
         const decoratedUser = { ...user }
         const docId = user.doc_id
-        if (docId) {
+        if (docId && fileTreeData) {
           decoratedUser.doc = findDocEntityById(fileTreeData, docId)
         }
 

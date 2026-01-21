@@ -1,30 +1,34 @@
 // Metrics must be initialized before importing anything else
-require('@overleaf/metrics/initialize')
+import '@overleaf/metrics/initialize.js'
 
-const Metrics = require('@overleaf/metrics')
-const Settings = require('@overleaf/settings')
-const async = require('async')
+import Metrics from '@overleaf/metrics'
+import Settings from '@overleaf/settings'
+import async from 'async'
+import logger from '@overleaf/logger'
+import express from 'express'
+import session from 'express-session'
+import redis from '@overleaf/redis-wrapper'
+import ConnectRedis from 'connect-redis'
+import SessionSockets from './app/js/SessionSockets.js'
+import CookieParser from 'cookie-parser'
+import DrainManager from './app/js/DrainManager.js'
+import HealthCheckManager from './app/js/HealthCheckManager.js'
+import DeploymentManager from './app/js/DeploymentManager.js'
+import Path from 'node:path'
+import socketIO from 'socket.io'
+import socketIOClient from 'socket.io-client'
+import http from 'node:http'
+import Router from './app/js/Router.js'
+import WebsocketLoadBalancer from './app/js/WebsocketLoadBalancer.js'
+import DocumentUpdaterController from './app/js/DocumentUpdaterController.js'
 
-const logger = require('@overleaf/logger')
 logger.initialize('real-time')
 Metrics.event_loop.monitor(logger)
 Metrics.open_sockets.monitor()
 
-const express = require('express')
-const session = require('express-session')
-const redis = require('@overleaf/redis-wrapper')
-
 const sessionRedisClient = redis.createClient(Settings.redis.websessions)
 
-const RedisStore = require('connect-redis')(session)
-const SessionSockets = require('./app/js/SessionSockets')
-const CookieParser = require('cookie-parser')
-
-const DrainManager = require('./app/js/DrainManager')
-const HealthCheckManager = require('./app/js/HealthCheckManager')
-const DeploymentManager = require('./app/js/DeploymentManager')
-
-const Path = require('node:path')
+const RedisStore = ConnectRedis(session)
 
 // NOTE: debug is invoked for every blob that is put on the wire
 const socketIoLogger = {
@@ -45,9 +49,9 @@ DeploymentManager.initialise()
 // Set up socket.io server
 const app = express()
 
-const server = require('node:http').createServer(app)
+const server = http.createServer(app)
 server.keepAliveTimeout = Settings.keepAliveTimeoutMs
-const io = require('socket.io').listen(server, {
+const io = socketIO.listen(server, {
   logger: socketIoLogger,
 })
 
@@ -82,23 +86,52 @@ io.configure(function () {
   // See http://answers.dotcloud.com/question/578/problem-with-websocket-over-ssl-in-safari-with
   io.set('match origin protocol', true)
 
-  // gzip uses a Node 0.8.x method of calling the gzip program which
-  // doesn't work with 0.6.x
-  // io.enable('browser client gzip')
-  io.set('transports', [
-    'websocket',
-    'flashsocket',
-    'htmlfile',
-    'xhr-polling',
-    'jsonp-polling',
-  ])
+  io.set('transports', ['websocket', 'xhr-polling'])
+
+  if (Settings.allowedCorsOrigins) {
+    // Create a regex for matching origins, allowing wildcard subdomains
+    const allowedCorsOriginsRegex = new RegExp(
+      `^${Settings.allowedCorsOrigins.replaceAll('.', '\\.').replace('://*', '://[^.]+')}(?::443)?$`
+    )
+
+    io.set('origins', function (origin, req) {
+      if (!origin) {
+        // There is no origin or referer header - this is likely a same-site request.
+        logger.warn({ req }, 'No origin or referer header')
+        return true
+      }
+      const normalizedOrigin = URL.parse(origin).origin
+      const originIsValid = allowedCorsOriginsRegex.test(normalizedOrigin)
+
+      if (req.headers.origin) {
+        if (!originIsValid) {
+          logger.warn(
+            { normalizedOrigin, origin, req },
+            'Origin header does not match allowed origins'
+          )
+        }
+        return originIsValid
+      }
+
+      if (!originIsValid) {
+        // There is no Origin header and the Referrer does not satisfy the
+        // constraints. We're going to pass this anyway for now but log it
+        logger.warn(
+          { req, referer: req.headers.referer },
+          'Referrer header does not match allowed origins'
+        )
+      }
+
+      return true
+    })
+  }
 })
 
 // Serve socket.io.js client file from imported dist folder
 // The express sendFile method correctly handles conditional
 // requests using the last-modified time and etag (which is
 // a combination of mtime and size)
-const socketIOClientFolder = require('socket.io-client').dist
+const socketIOClientFolder = socketIOClient.dist
 app.get('/socket.io/socket.io.js', function (req, res) {
   res.sendFile(Path.join(socketIOClientFolder, 'socket.io.min.js'))
 })
@@ -127,9 +160,7 @@ app.get('/debug/events', function (req, res) {
   res.send(`debug mode will log next ${Settings.debugEvents} events`)
 })
 
-const rclient = require('@overleaf/redis-wrapper').createClient(
-  Settings.redis.realtime
-)
+const rclient = redis.createClient(Settings.redis.realtime)
 
 function healthCheck(req, res) {
   rclient.healthCheck(function (error) {
@@ -161,13 +192,10 @@ app.get('/health_check/redis', healthCheck)
 // log http requests for routes defined from this point onwards
 app.use(Metrics.http.monitor(logger))
 
-const Router = require('./app/js/Router')
 Router.configure(app, io, sessionSockets)
 
-const WebsocketLoadBalancer = require('./app/js/WebsocketLoadBalancer')
 WebsocketLoadBalancer.listenForEditorEvents(io)
 
-const DocumentUpdaterController = require('./app/js/DocumentUpdaterController')
 DocumentUpdaterController.listenForUpdatesFromDocumentUpdater(io)
 
 const { port } = Settings.internal.realTime
@@ -236,6 +264,7 @@ function drainAndShutdown(signal) {
 }
 
 Settings.shutDownInProgress = false
+Settings.shutDownScheduled = false
 const shutdownDrainTimeWindow = parseInt(Settings.shutdownDrainTimeWindow, 10)
 if (Settings.shutdownDrainTimeWindow) {
   logger.info({ shutdownDrainTimeWindow }, 'shutdownDrainTimeWindow enabled')
@@ -275,8 +304,16 @@ if (Settings.shutdownDrainTimeWindow) {
         )
       }
       logger.error({ err: error }, 'uncaught exception')
-      if (Settings.errors && Settings.errors.shutdownOnUncaughtError) {
-        drainAndShutdown('SIGABRT')
+      if (
+        Settings.errors?.shutdownOnUncaughtError &&
+        !Settings.shutDownScheduled
+      ) {
+        Settings.shutDownScheduled = true
+        const delay = Math.ceil(
+          Math.random() * 60 * Math.max(io.sockets.clients().length, 1_000)
+        )
+        logger.info({ delay }, 'delaying shutdown on uncaught error')
+        setTimeout(() => drainAndShutdown('SIGABRT'), delay)
       }
     })
   }
@@ -314,3 +351,5 @@ if (Settings.continualPubsubTraffic) {
 
   runPubSubTraffic()
 }
+
+export default app

@@ -7,7 +7,7 @@ import fetchMock from 'fetch-mock'
 describe('group invite', function () {
   describe('user has a personal subscription', function () {
     afterEach(function () {
-      fetchMock.reset()
+      fetchMock.removeRoutes().clearHistory()
     })
 
     it('shows option to cancel subscription', async function () {
@@ -40,7 +40,7 @@ describe('group invite', function () {
       fireEvent.click(button)
       await waitFor(() => {
         screen.getByText(
-          'Something went wrong canceling your subscription. Please contact support.'
+          'Something went wrong canceling your subscription. Please contact Support.'
         )
       })
     })

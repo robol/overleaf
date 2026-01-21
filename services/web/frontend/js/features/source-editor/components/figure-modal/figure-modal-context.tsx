@@ -1,5 +1,5 @@
 import { FC, createContext, useContext, useReducer } from 'react'
-import { PastedImageData } from '../../extensions/figure-modal'
+import { PastedImageData } from '../../utils/paste-image'
 
 /* eslint-disable no-unused-vars */
 export enum FigureModalSource {
@@ -80,7 +80,9 @@ const FigureModalExistingFigureContext = createContext<
   | undefined
 >(undefined)
 
-export const FigureModalProvider: FC = ({ children }) => {
+export const FigureModalProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
   const [state, dispatch] = useReducer(reducer, {
     source: FigureModalSource.NONE,
     helpShown: false,

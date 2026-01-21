@@ -86,7 +86,7 @@ ${(
   '\\\\\n'
 ).repeat(sizeY)}\t\\end{tabular}
 \t\\caption{Caption}
-\t\\label{tab:my_label}
+\t\\label{tab:placeholder}
 \\end{table}${suffix}`
   snippet(template)({ state, dispatch }, { label: 'Table' }, pos, pos)
   return true
@@ -165,4 +165,22 @@ export const toggleSearch: Command = view => {
 
 export const addComment = () => {
   window.dispatchEvent(new Event('add-new-review-comment'))
+}
+
+export const deleteSelection: Command = view => {
+  if (view.state.selection.ranges.every(range => range.empty)) return false
+
+  const transaction = view.state.changeByRange(range => {
+    if (range.empty) {
+      return { changes: [], range }
+    }
+
+    return {
+      changes: { from: range.from, to: range.to, insert: '' },
+      range: EditorSelection.cursor(range.from),
+    }
+  })
+
+  view.dispatch(transaction)
+  return true
 }

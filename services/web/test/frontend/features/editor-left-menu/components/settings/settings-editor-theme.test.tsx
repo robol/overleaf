@@ -5,41 +5,108 @@ import SettingsEditorTheme from '../../../../../../frontend/js/features/editor-l
 import { EditorLeftMenuProvider } from '@/features/editor-left-menu/components/editor-left-menu-context'
 import { EditorProviders } from '../../../../helpers/editor-providers'
 
-describe('<SettingsEditorTheme />', function () {
-  const editorThemes = ['editortheme-1', 'editortheme-2', 'editortheme-3']
+const MOCK_IEEE_BRAND_ID = 123
 
-  const legacyEditorThemes = ['legacytheme-1', 'legacytheme-2', 'legacytheme-3']
+describe('<SettingsEditorTheme />', function () {
+  const editorThemes = [
+    { name: 'editortheme-1', dark: false },
+    { name: 'editortheme-2', dark: false },
+    { name: 'editortheme-3', dark: false },
+  ]
+
+  const legacyEditorThemes = [
+    { name: 'legacytheme-1', dark: false },
+    { name: 'legacytheme-2', dark: false },
+    { name: 'legacytheme-3', dark: false },
+  ]
 
   beforeEach(function () {
     window.metaAttributesCache.set('ol-editorThemes', editorThemes)
     window.metaAttributesCache.set('ol-legacyEditorThemes', legacyEditorThemes)
+    window.metaAttributesCache.set('ol-brandVariation', {
+      brand_id: undefined,
+    })
+    window.metaAttributesCache.get('ol-ExposedSettings').ieeeBrandId =
+      MOCK_IEEE_BRAND_ID
   })
 
   afterEach(function () {
-    fetchMock.reset()
+    fetchMock.removeRoutes().clearHistory()
   })
 
-  it('shows correct menu', async function () {
-    render(
-      <EditorProviders>
-        <EditorLeftMenuProvider>
-          <SettingsEditorTheme />
-        </EditorLeftMenuProvider>
-      </EditorProviders>
-    )
-
-    const select = screen.getByLabelText('Editor theme')
-
+  function checkSelect(select: HTMLElement) {
     for (const theme of editorThemes) {
-      const option = within(select).getByText(theme.replace(/_/g, ' '))
-      expect(option.getAttribute('value')).to.equal(theme)
+      const option = within(select).getByText(theme.name.replace(/_/g, ' '))
+      expect(option.getAttribute('value')).to.equal(theme.name)
     }
 
     for (const theme of legacyEditorThemes) {
       const option = within(select).getByText(
-        theme.replace(/_/g, ' ') + ' (Legacy)'
+        theme.name.replace(/_/g, ' ') + ' (Legacy)'
       )
-      expect(option.getAttribute('value')).to.equal(theme)
+      expect(option.getAttribute('value')).to.equal(theme.name)
     }
+  }
+
+  describe('with default theme', function () {
+    beforeEach(function () {
+      render(
+        <EditorProviders userSettings={{ overallTheme: '' }}>
+          <EditorLeftMenuProvider>
+            <SettingsEditorTheme />
+          </EditorLeftMenuProvider>
+        </EditorProviders>
+      )
+    })
+
+    it('shows correct menu', async function () {
+      const select = screen.getByLabelText('Editor theme')
+      expect(select).to.exist
+      checkSelect(select)
+    })
+  })
+
+  describe('with system theme', function () {
+    beforeEach(function () {
+      render(
+        <EditorProviders userSettings={{ overallTheme: 'system' }}>
+          <EditorLeftMenuProvider>
+            <SettingsEditorTheme />
+          </EditorLeftMenuProvider>
+        </EditorProviders>
+      )
+    })
+
+    it('shows correct menu', async function () {
+      const select = screen.queryByLabelText('Editor theme')
+      expect(select).to.not.exist
+      const lightSelect = screen.getByLabelText('Light editor theme')
+      expect(lightSelect).to.exist
+      checkSelect(lightSelect)
+      const darkSelect = screen.getByLabelText('Dark editor theme')
+      expect(darkSelect).to.exist
+      checkSelect(darkSelect)
+    })
+  })
+
+  describe('with IEEE branding', function () {
+    beforeEach(function () {
+      window.metaAttributesCache.set('ol-brandVariation', {
+        brand_id: MOCK_IEEE_BRAND_ID,
+      })
+      render(
+        <EditorProviders userSettings={{ overallTheme: 'system' }}>
+          <EditorLeftMenuProvider>
+            <SettingsEditorTheme />
+          </EditorLeftMenuProvider>
+        </EditorProviders>
+      )
+    })
+
+    it('ignores the system theme and shows single selection', async function () {
+      const select = screen.getByLabelText('Editor theme')
+      expect(select).to.exist
+      checkSelect(select)
+    })
   })
 })

@@ -15,16 +15,11 @@ import {
   EditorState,
   Transaction,
 } from '@codemirror/state'
-import { isSplitTestEnabled } from '@/utils/splitTestUtils'
 import { v4 as uuid } from 'uuid'
 
 export const addNewCommentRangeEffect = StateEffect.define<Range<Decoration>>()
 
 export const removeNewCommentRangeEffect = StateEffect.define<string>()
-
-export const textSelectedEffect = StateEffect.define<null>()
-
-export const removeReviewPanelTooltipEffect = StateEffect.define()
 
 const mouseDownEffect = StateEffect.define()
 const mouseUpEffect = StateEffect.define()
@@ -56,11 +51,7 @@ export const buildAddNewCommentRangeEffect = (range: SelectionRange) => {
   )
 }
 
-export const reviewTooltip = (): Extension => {
-  if (!isSplitTestEnabled('review-panel-redesign')) {
-    return []
-  }
-
+export const reviewTooltip = (editorContextMenuEnabled = false): Extension => {
   let mouseUpListener: null | (() => void) = null
   const disableMouseUpListener = () => {
     if (mouseUpListener) {
@@ -74,6 +65,11 @@ export const reviewTooltip = (): Extension => {
     mouseDownStateField,
     EditorView.domEventHandlers({
       mousedown: (event, view) => {
+        // Hide tooltip when opening the context menu
+        if (editorContextMenuEnabled && (event.button === 2 || event.ctrlKey)) {
+          return false
+        }
+
         disableMouseUpListener()
         mouseUpListener = () => {
           disableMouseUpListener()

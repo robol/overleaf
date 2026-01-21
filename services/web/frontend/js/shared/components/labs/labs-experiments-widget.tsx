@@ -1,35 +1,39 @@
 import { ReactNode, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import OLBadge from '@/features/ui/components/ol/ol-badge'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+import OLBadge from '@/shared/components/ol/ol-badge'
 import { postJSON } from '@/infrastructure/fetch-json'
-import OLButton from '@/features/ui/components/ol/ol-button'
+import OLButton from '@/shared/components/ol/ol-button'
 import getMeta from '@/utils/meta'
-import { isBootstrap5 } from '@/features/utils/bootstrap-5'
+import Notification from '../notification'
 
-type IntegrationLinkingWidgetProps = {
+export type LabsExperimentWidgetProps = {
   logo: ReactNode
   title: string
-  description: string
+  description: string | ReactNode
+  optedInDescription?: string | ReactNode
   helpPath?: string
   labsEnabled?: boolean
   experimentName: string
   setErrorMessage: (message: string) => void
   optedIn: boolean
   setOptedIn: (optedIn: boolean) => void
+  feedbackLink?: string
 }
 
+/** @knipignore */
 export function LabsExperimentWidget({
   logo,
   title,
   description,
+  optedInDescription,
   helpPath,
   labsEnabled,
   experimentName,
   setErrorMessage,
   optedIn,
   setOptedIn,
-}: IntegrationLinkingWidgetProps) {
+  feedbackLink,
+}: LabsExperimentWidgetProps) {
   const { t } = useTranslation()
 
   const experimentsErrorMessage = t(
@@ -70,7 +74,7 @@ export function LabsExperimentWidget({
           {optedIn && <OLBadge bg="info">{t('enabled')}</OLBadge>}
         </div>
         <p className="small">
-          {description}{' '}
+          {optedIn && optedInDescription ? optedInDescription : description}{' '}
           {helpPath && (
             <a href={helpPath} target="_blank" rel="noreferrer">
               {t('learn_more')}
@@ -78,9 +82,18 @@ export function LabsExperimentWidget({
           )}
         </p>
       </div>
-      {disabled && (
-        <div className="disabled-explanation">{t('experiment_full')}</div>
-      )}
+      <div>
+        {optedIn && feedbackLink && (
+          <OLButton
+            variant="ghost"
+            href={feedbackLink}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t('give_feedback')}
+          </OLButton>
+        )}
+      </div>
       <div>
         {labsEnabled && (
           <ActionButton
@@ -91,6 +104,17 @@ export function LabsExperimentWidget({
           />
         )}
       </div>
+      {disabled && (
+        <>
+          <div />
+          <Notification
+            type="info"
+            content={t('experiment_full_check_back_soon')}
+          />
+          <div />
+          <div />
+        </>
+      )}
     </div>
   )
 }
@@ -113,34 +137,19 @@ function ActionButton({
   if (optedIn) {
     return (
       <OLButton variant="secondary" onClick={handleDisable}>
-        {t('turn_off')}
+        {t('disable')}
       </OLButton>
     )
   } else if (disabled) {
-    const tooltipableButton = isBootstrap5() ? (
-      <div className="d-inline-block">
-        <OLButton variant="primary" disabled>
-          {t('turn_on')}
-        </OLButton>
-      </div>
-    ) : (
-      <OLButton variant="primary" disabled>
-        {t('turn_on')}
-      </OLButton>
-    )
     return (
-      <OLTooltip
-        id="experiment-disabled"
-        description={t('this_experiment_isnt_accepting_new_participants')}
-        overlayProps={{ delay: 0 }}
-      >
-        {tooltipableButton}
-      </OLTooltip>
+      <OLButton variant="primary" disabled>
+        {t('enable')}
+      </OLButton>
     )
   } else {
     return (
       <OLButton variant="primary" onClick={handleEnable}>
-        {t('turn_on')}
+        {t('enable')}
       </OLButton>
     )
   }

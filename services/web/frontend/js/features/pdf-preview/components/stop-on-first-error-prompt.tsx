@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useTranslation, Trans } from 'react-i18next'
-import OLButton from '@/features/ui/components/ol/ol-button'
+import OLButton from '@/shared/components/ol/ol-button'
 import PdfLogEntry from './pdf-log-entry'
 import { useDetachCompileContext as useCompileContext } from '../../../shared/context/detach-compile-context'
 import { useStopOnFirstError } from '../../../shared/hooks/use-stop-on-first-error'
@@ -29,10 +29,9 @@ export default function StopOnFirstErrorPrompt() {
             components={[<strong />]}
           />{' '}
           <OLButton
-            variant="info"
+            variant="primary"
             size="sm"
             onClick={handleDisableButtonClick}
-            bs3Props={{ bsSize: 'xsmall' }}
           >
             {t('disable_stop_on_first_error')}
           </OLButton>

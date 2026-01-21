@@ -1,33 +1,29 @@
 import { useState, useEffect, useMemo } from 'react'
-import PropTypes from 'prop-types'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { useShareProjectContext } from './share-project-modal'
 import TransferOwnershipModal from './transfer-ownership-modal'
 import { removeMemberFromProject, updateMember } from '../utils/api'
-import Icon from '@/shared/components/icon'
 import { useProjectContext } from '@/shared/context/project-context'
 import { sendMB } from '@/infrastructure/event-tracking'
 import { Select } from '@/shared/components/select'
-import type { ProjectContextMember } from '@/shared/context/types/project-context'
+import type { ProjectMember } from '@/shared/context/types/project-metadata'
 import { PermissionsLevel } from '@/features/ide-react/types/permissions'
 import { linkSharingEnforcementDate } from '../utils/link-sharing'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
-import OLCol from '@/features/ui/components/ol/ol-col'
+import OLButton from '@/shared/components/ol/ol-button'
+import OLFormGroup from '@/shared/components/ol/ol-form-group'
+import OLCol from '@/shared/components/ol/ol-col'
 import MaterialIcon from '@/shared/components/material-icon'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
-import { bsVersion } from '@/features/utils/bootstrap-5'
-import classnames from 'classnames'
-import getMeta from '@/utils/meta'
 import { useUserContext } from '@/shared/context/user-context'
+import { upgradePlan } from '@/main/account-upgrade'
 
 type PermissionsOption = PermissionsLevel | 'removeAccess' | 'downgraded'
 
 type EditMemberProps = {
-  member: ProjectContextMember
+  member: ProjectMember
   hasExceededCollaboratorLimit: boolean
   hasBeenDowngraded: boolean
   canAddCollaborators: boolean
+  isReviewerOnFreeProject?: boolean
 }
 
 type Privilege = {
@@ -40,6 +36,7 @@ export default function EditMember({
   hasExceededCollaboratorLimit,
   hasBeenDowngraded,
   canAddCollaborators,
+  isReviewerOnFreeProject,
 }: EditMemberProps) {
   const [privileges, setPrivileges] = useState<PermissionsOption>(
     member.privileges
@@ -54,8 +51,9 @@ export default function EditMember({
     setPrivileges(member.privileges)
   }, [member.privileges])
 
-  const { updateProject, monitorRequest } = useShareProjectContext()
-  const { _id: projectId, members, invites } = useProjectContext()
+  const { monitorRequest } = useShareProjectContext()
+  const { projectId, project, updateProject } = useProjectContext()
+  const { members, invites } = project || {}
   const user = useUserContext()
 
   // Immediately commit this change if it's lower impact (eg. editor > viewer)
@@ -76,7 +74,10 @@ export default function EditMember({
   }
 
   function shouldWarnMember() {
-    return hasExceededCollaboratorLimit && privileges === 'readAndWrite'
+    return (
+      hasExceededCollaboratorLimit &&
+      ['readAndWrite', 'review'].includes(privileges)
+    )
   }
 
   function commitPrivilegeChange(newPrivileges: PermissionsOption) {
@@ -88,14 +89,15 @@ export default function EditMember({
     } else if (newPrivileges === 'removeAccess') {
       monitorRequest(() => removeMemberFromProject(projectId, member)).then(
         () => {
-          const updatedMembers = members.filter(existing => existing !== member)
+          const updatedMembers =
+            members?.filter(existing => existing !== member) || []
           updateProject({
             members: updatedMembers,
           })
           sendMB('collaborator-removed', {
             project_id: projectId,
             current_collaborators_amount: updatedMembers.length,
-            current_invites_amount: invites.length,
+            current_invites_amount: invites?.length || 0,
           })
         }
       )
@@ -110,9 +112,10 @@ export default function EditMember({
         })
       ).then(() => {
         updateProject({
-          members: members.map(item =>
-            item._id === member._id ? { ...item, newPrivileges } : item
-          ),
+          members:
+            members?.map(item =>
+              item._id === member._id ? { ...item, newPrivileges } : item
+            ) || [],
         })
       })
     }
@@ -135,7 +138,6 @@ export default function EditMember({
 
   return (
     <form
-      className={bsVersion({ bs3: 'form-horizontal' })}
       id="share-project-form"
       onSubmit={e => {
         e.preventDefault()
@@ -144,41 +146,34 @@ export default function EditMember({
         }
       }}
     >
-      <OLFormGroup
-        className={classnames('project-member', bsVersion({ bs5: 'row' }))}
-      >
-        <OLCol xs={7}>
+      <OLFormGroup className="project-member row">
+        <OLCol xs={8}>
           <div className="project-member-email-icon">
-            <BootstrapVersionSwitcher
-              bs3={
-                <Icon
-                  type={
-                    shouldWarnMember() || member.pendingEditor
-                      ? 'warning'
-                      : 'user'
-                  }
-                  fw
-                />
+            <MaterialIcon
+              type={
+                shouldWarnMember() ||
+                member.pendingEditor ||
+                member.pendingReviewer
+                  ? 'warning'
+                  : 'person'
               }
-              bs5={
-                <MaterialIcon
-                  type={
-                    shouldWarnMember() || member.pendingEditor
-                      ? 'warning'
-                      : 'person'
-                  }
-                  className={
-                    shouldWarnMember() || member.pendingEditor
-                      ? 'project-member-warning'
-                      : undefined
-                  }
-                />
+              className={
+                shouldWarnMember() ||
+                member.pendingEditor ||
+                member.pendingReviewer
+                  ? 'project-member-warning'
+                  : undefined
               }
             />
             <div className="email-warning">
               {member.email}
               {member.pendingEditor && (
                 <div className="subtitle">{t('view_only_downgraded')}</div>
+              )}
+              {member.pendingReviewer && (
+                <div className="subtitle">
+                  {t('view_only_reviewer_downgraded')}
+                </div>
               )}
               {shouldWarnMember() && (
                 <div className="subtitle">
@@ -187,11 +182,26 @@ export default function EditMember({
                   })}
                 </div>
               )}
+              {isReviewerOnFreeProject && (
+                <div className="small">
+                  <Trans
+                    i18nKey="comment_only_upgrade_to_enable_track_changes"
+                    components={[
+                      // eslint-disable-next-line react/jsx-key
+                      <OLButton
+                        variant="link"
+                        className="btn-inline-link"
+                        onClick={() => upgradePlan('track-changes')}
+                      />,
+                    ]}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </OLCol>
 
-        <OLCol xs={5} className="project-member-actions">
+        <OLCol xs={4} className="project-member-actions">
           {confirmRemoval && (
             <ChangePrivilegesActions
               handleReset={() => setPrivileges(member.privileges)}
@@ -200,15 +210,7 @@ export default function EditMember({
 
           <div className="project-member-select">
             {hasBeenDowngraded && !confirmRemoval && (
-              <BootstrapVersionSwitcher
-                bs3={<Icon type="warning" fw />}
-                bs5={
-                  <MaterialIcon
-                    type="warning"
-                    className="project-member-warning"
-                  />
-                }
-              />
+              <MaterialIcon type="warning" className="project-member-warning" />
             )}
 
             <SelectPrivilege
@@ -226,15 +228,6 @@ export default function EditMember({
       </OLFormGroup>
     </form>
   )
-}
-EditMember.propTypes = {
-  member: PropTypes.shape({
-    _id: PropTypes.string.isRequired,
-    email: PropTypes.string.isRequired,
-    privileges: PropTypes.string.isRequired,
-  }),
-  hasExceededCollaboratorLimit: PropTypes.bool.isRequired,
-  canAddCollaborators: PropTypes.bool.isRequired,
 }
 
 type SelectPrivilegeProps = {
@@ -255,7 +248,7 @@ function SelectPrivilege({
 
   const privileges = useMemo(
     (): Privilege[] =>
-      getMeta('ol-isReviewerRoleEnabled')
+      features.trackChangesVisible
         ? [
             { key: 'owner', label: t('make_owner') },
             { key: 'readAndWrite', label: t('editor') },
@@ -269,7 +262,7 @@ function SelectPrivilege({
             { key: 'readOnly', label: t('viewer') },
             { key: 'removeAccess', label: t('remove_access') },
           ],
-    [t]
+    [features.trackChangesVisible, t]
   )
 
   const downgradedPseudoPrivilege: Privilege = {
@@ -278,28 +271,27 @@ function SelectPrivilege({
   }
 
   function getPrivilegeSubtitle(privilege: PermissionsOption) {
-    if (!hasBeenDowngraded) {
-      return !canAddCollaborators &&
-        privilege === 'readAndWrite' &&
-        value !== 'readAndWrite'
-        ? t('limited_to_n_editors_per_project', {
-            count: features.collaborators,
-          })
-        : ''
+    if (!['readAndWrite', 'review'].includes(privilege)) {
+      return ''
     }
 
-    return privilege === 'readAndWrite'
-      ? t('limited_to_n_editors', {
-          count: features.collaborators,
-        })
-      : ''
+    if (
+      hasBeenDowngraded ||
+      (!canAddCollaborators && !['readAndWrite', 'review'].includes(value))
+    ) {
+      return t('limited_to_n_collaborators_per_project', {
+        count: features.collaborators,
+      })
+    } else {
+      return ''
+    }
   }
 
   function isPrivilegeDisabled(privilege: PermissionsOption) {
     return (
       !canAddCollaborators &&
-      privilege === 'readAndWrite' &&
-      (hasBeenDowngraded || value !== 'readAndWrite')
+      ['readAndWrite', 'review'].includes(privilege) &&
+      (hasBeenDowngraded || !['readAndWrite', 'review'].includes(value))
     )
   }
 

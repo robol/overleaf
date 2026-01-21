@@ -1,5 +1,5 @@
 import { Trans, useTranslation } from 'react-i18next'
-import OLNotification from '@/features/ui/components/ol/ol-notification'
+import OLNotification from '@/shared/components/ol/ol-notification'
 import Card from '@/features/group-management/components/card'
 
 function MissingBillingInformation() {
@@ -16,7 +16,7 @@ function MissingBillingInformation() {
             components={[
               // eslint-disable-next-line jsx-a11y/anchor-has-content, react/jsx-key
               <a
-                href="/user/subscription/recurly/billing-details"
+                href="/user/subscription/payment/billing-details"
                 rel="noreferrer noopener"
               />,
               // eslint-disable-next-line jsx-a11y/anchor-has-content, react/jsx-key

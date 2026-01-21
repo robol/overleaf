@@ -23,7 +23,6 @@ import { autoPair } from './auto-pair'
 import { phrases } from './phrases'
 import { spelling } from './spelling'
 import { symbolPalette } from './symbol-palette'
-import { trackChanges } from './track-changes'
 import { search } from './search'
 import { filterCharacters } from './filter-characters'
 import { keybindings } from './keybindings'
@@ -36,7 +35,7 @@ import importOverleafModules from '../../../../macros/import-overleaf-module.mac
 import { emptyLineFiller } from './empty-line-filler'
 import { goToLinePanel } from './go-to-line'
 import { drawSelection } from './draw-selection'
-import { visual } from './visual/visual'
+import { sourceOnly, visual } from './visual/visual'
 import { inlineBackground } from './inline-background'
 import { indentationMarkers } from './indentation-markers'
 import { codemirrorDevTools } from '../languages/latex/codemirror-dev-tools'
@@ -45,14 +44,18 @@ import { shortcuts } from './shortcuts'
 import { effectListeners } from './effect-listeners'
 import { highlightSpecialChars } from './highlight-special-chars'
 import { toolbarPanel } from './toolbar/toolbar-panel'
+import { breadcrumbPanel } from './breadcrumbs-panel'
 import { geometryChangeEvent } from './geometry-change-event'
 import { docName } from './doc-name'
 import { fileTreeItemDrop } from './file-tree-item-drop'
 import { mathPreview } from './math-preview'
-import { isSplitTestEnabled } from '@/utils/splitTestUtils'
 import { ranges } from './ranges'
+import { historyOT } from './history-ot'
 import { trackDetachedComments } from './track-detached-comments'
 import { reviewTooltip } from './review-tooltip'
+import { tooltipsReposition } from './tooltips-reposition'
+import { selectionListener } from '@/features/source-editor/extensions/selection-listener'
+import { contextMenu } from './context-menu'
 
 const moduleExtensions: Array<(options: Record<string, any>) => Extension> =
   importOverleafModules('sourceEditorExtensions').map(
@@ -78,6 +81,10 @@ export const createExtensions = (options: Record<string, any>): Extension[] => [
   EditorState.allowMultipleSelections.of(true),
   // A built-in extension that enables soft line wrapping.
   EditorView.lineWrapping,
+  sourceOnly(
+    options.visual.visual,
+    EditorView.contentAttributes.of({ 'aria-label': 'Source Editor editing' })
+  ),
   // A built-in extension that re-indents input if the language defines an indentOnInput field in its language data.
   indentOnInput(),
   lineWrappingIndentation(options.visual.visual),
@@ -135,7 +142,7 @@ export const createExtensions = (options: Record<string, any>): Extension[] => [
   cursorHighlights(),
   autoPair(options.settings),
   editable(),
-  search(),
+  search(options.initialSearchQuery),
   phrases(options.phrases),
   spelling(options.spelling),
   shortcuts,
@@ -143,14 +150,16 @@ export const createExtensions = (options: Record<string, any>): Extension[] => [
   // NOTE: `emptyLineFiller` needs to be before `trackChanges`,
   // so the decorations are added in the correct order.
   emptyLineFiller(),
-  isSplitTestEnabled('review-panel-redesign')
-    ? ranges()
-    : trackChanges(options.currentDoc, options.changeManager),
+  options.currentDoc.currentDocument.getType() === 'history-ot'
+    ? historyOT(options.currentDoc.currentDocument)
+    : ranges(),
   trackDetachedComments(options.currentDoc),
   visual(options.visual),
   mathPreview(options.settings.mathPreview),
-  reviewTooltip(),
+  reviewTooltip(options.editorContextMenuEnabled),
+  contextMenu(options.editorContextMenuEnabled),
   toolbarPanel(),
+  breadcrumbPanel(),
   verticalOverflow(),
   highlightActiveLine(options.visual.visual),
   // The built-in extension that highlights the active line in the gutter.
@@ -165,4 +174,6 @@ export const createExtensions = (options: Record<string, any>): Extension[] => [
   effectListeners(),
   geometryChangeEvent(),
   fileTreeItemDrop(),
+  tooltipsReposition(),
+  selectionListener(options.setEditorSelection),
 ]

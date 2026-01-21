@@ -13,7 +13,8 @@ import {
   DropdownItem,
   DropdownMenu,
   DropdownToggle,
-} from '@/features/ui/components/bootstrap-5/dropdown-menu'
+} from '@/shared/components/dropdown/dropdown-menu'
+import { Tag } from '../../../../../../../../app/src/Features/Tags/types'
 
 function TagsDropdown() {
   const {
@@ -26,7 +27,7 @@ function TagsDropdown() {
   const { openCreateTagModal, CreateTagModal } = useTag()
 
   const handleOpenCreateTagModal = useCallback(
-    e => {
+    (e: React.MouseEvent) => {
       e.preventDefault()
       openCreateTagModal()
     },
@@ -34,7 +35,7 @@ function TagsDropdown() {
   )
 
   const handleAddTagToSelectedProjects = useCallback(
-    (e, tagId) => {
+    (e: React.MouseEvent, tagId: string) => {
       e.preventDefault()
       const tag = tags.find(tag => tag._id === tagId)
       const projectIds = []
@@ -50,7 +51,7 @@ function TagsDropdown() {
   )
 
   const handleRemoveTagFromSelectedProjects = useCallback(
-    (e, tagId) => {
+    (e: React.MouseEvent, tagId: string) => {
       e.preventDefault()
       for (const selectedProject of selectedProjects) {
         removeProjectFromTagInView(tagId, selectedProject.id)
@@ -64,7 +65,7 @@ function TagsDropdown() {
   )
 
   const containsAllSelectedProjects = useCallback(
-    tag => {
+    (tag: Tag) => {
       for (const project of selectedProjects) {
         if (!(tag.project_ids || []).includes(project.id)) {
           return false
@@ -90,7 +91,7 @@ function TagsDropdown() {
           data-testid="project-tools-more-dropdown-menu"
         >
           <DropdownHeader>{t('add_to_tag')}</DropdownHeader>
-          {sortBy(tags, tag => tag.name?.toLowerCase()).map((tag, index) => (
+          {sortBy(tags, tag => tag.name?.toLowerCase()).map(tag => (
             <li role="none" key={tag._id}>
               <DropdownItem
                 onClick={e =>
@@ -110,6 +111,7 @@ function TagsDropdown() {
                     <DropdownItem.EmptyLeadingIcon />
                   )
                 }
+                translate="no"
               >
                 <div className="badge-tag-content">
                   <span className="badge-prepend">

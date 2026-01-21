@@ -1,14 +1,15 @@
 import { ActiveSubscription } from '../../../../../frontend/js/features/subscription/components/dashboard/states/active/active'
-import { RecurlySubscription } from '../../../../../types/subscription/dashboard/subscription'
+import { PaidSubscription } from '../../../../../types/subscription/dashboard/subscription'
 import { groupPlans, plans } from '../fixtures/plans'
 import { renderWithSubscriptionDashContext } from './render-with-subscription-dash-context'
 import { MetaTag } from '@/utils/meta'
 import { CurrencyCode } from '../../../../../types/subscription/currency'
 
 export function renderActiveSubscription(
-  subscription: RecurlySubscription,
+  subscription: PaidSubscription,
   tags: MetaTag[] = [],
-  currencyCode?: CurrencyCode
+  currencyCode?: CurrencyCode,
+  canUseFlexibleLicensing?: boolean
 ) {
   renderWithSubscriptionDashContext(
     <ActiveSubscription subscription={subscription} />,
@@ -25,6 +26,13 @@ export function renderActiveSubscription(
         {
           name: 'ol-recommendedCurrency',
           value: currencyCode || 'USD',
+        },
+        {
+          name: 'ol-canUseFlexibleLicensing',
+          value:
+            canUseFlexibleLicensing ||
+            subscription.plan?.canUseFlexibleLicensing ||
+            false,
         },
       ],
     }

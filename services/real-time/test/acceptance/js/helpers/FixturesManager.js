@@ -6,12 +6,14 @@
  * DS207: Consider shorter variations of null checks
  * Full docs: https://github.com/decaffeinate/decaffeinate/blob/master/docs/suggestions.md
  */
-let FixturesManager
-const RealTimeClient = require('./RealTimeClient')
-const MockWebServer = require('./MockWebServer')
-const MockDocUpdaterServer = require('./MockDocUpdaterServer')
+import RealTimeClient from './RealTimeClient.js'
+import MockWebServer from './MockWebServer.js'
+import MockDocUpdaterServer from './MockDocUpdaterServer.js'
+import crypto from 'node:crypto'
 
-module.exports = FixturesManager = {
+let FixturesManager
+
+export default FixturesManager = {
   setUpProject(options, callback) {
     if (options == null) {
       options = {}
@@ -108,13 +110,17 @@ module.exports = FixturesManager = {
     if (!options.ops) {
       options.ops = ['mock', 'ops']
     }
-    const { doc_id: docId, lines, version, ops, ranges } = options
+    if (!options.type) {
+      options.type = 'sharejs-text-ot'
+    }
+    const { doc_id: docId, lines, version, ops, ranges, type } = options
 
     MockDocUpdaterServer.createMockDoc(projectId, docId, {
       lines,
       version,
       ops,
       ranges,
+      type,
     })
     return MockDocUpdaterServer.run(error => {
       if (error != null) {
@@ -147,7 +153,7 @@ module.exports = FixturesManager = {
   },
 
   getRandomId() {
-    return require('node:crypto')
+    return crypto
       .createHash('sha1')
       .update(Math.random().toString())
       .digest('hex')

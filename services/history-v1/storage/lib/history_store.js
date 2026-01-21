@@ -15,17 +15,18 @@ const logger = require('@overleaf/logger')
 
 const assert = require('./assert')
 const persistor = require('./persistor')
-const projectKey = require('./project_key')
+const projectKey = require('@overleaf/object-persistor/src/ProjectKey.js')
 const streams = require('./streams')
 
 const Chunk = core.Chunk
 
 const gzip = promisify(zlib.gzip)
+const gunzip = promisify(zlib.gunzip)
 
 class LoadError extends OError {
   /**
-   * @param {number|string} projectId
-   * @param {number|string} chunkId
+   * @param {string} projectId
+   * @param {string} chunkId
    * @param {any} cause
    */
   constructor(projectId, chunkId, cause) {
@@ -41,8 +42,8 @@ class LoadError extends OError {
 
 class StoreError extends OError {
   /**
-   * @param {number|string} projectId
-   * @param {number|string} chunkId
+   * @param {string} projectId
+   * @param {string} chunkId
    * @param {any} cause
    */
   constructor(projectId, chunkId, cause) {
@@ -57,8 +58,8 @@ class StoreError extends OError {
 }
 
 /**
- * @param {number|string} projectId
- * @param {number|string} chunkId
+ * @param {string} projectId
+ * @param {string} chunkId
  * @return {string}
  */
 function getKey(projectId, chunkId) {
@@ -88,8 +89,8 @@ class HistoryStore {
   /**
    * Load the raw object for a History.
    *
-   * @param {number|string} projectId
-   * @param {number|string} chunkId
+   * @param {string} projectId
+   * @param {string} chunkId
    * @return {Promise<import('overleaf-editor-core/lib/types').RawHistory>}
    */
   async loadRaw(projectId, chunkId) {
@@ -114,11 +115,37 @@ class HistoryStore {
     }
   }
 
+  async loadRawWithBuffer(projectId, chunkId) {
+    assert.projectId(projectId, 'bad projectId')
+    assert.chunkId(chunkId, 'bad chunkId')
+
+    const key = getKey(projectId, chunkId)
+
+    logger.debug({ projectId, chunkId }, 'loadBuffer started')
+    try {
+      const buf = await streams.readStreamToBuffer(
+        await this.#persistor.getObjectStream(this.#bucket, key)
+      )
+      const unzipped = await gunzip(buf)
+      return {
+        buffer: buf,
+        raw: JSON.parse(unzipped.toString('utf-8')),
+      }
+    } catch (err) {
+      if (err instanceof objectPersistor.Errors.NotFoundError) {
+        throw new Chunk.NotPersistedError(projectId)
+      }
+      throw new LoadError(projectId, chunkId, err)
+    } finally {
+      logger.debug({ projectId, chunkId }, 'loadBuffer finished')
+    }
+  }
+
   /**
    * Compress and store a {@link History}.
    *
-   * @param {number|string} projectId
-   * @param {number|string} chunkId
+   * @param {string} projectId
+   * @param {string} chunkId
    * @param {import('overleaf-editor-core/lib/types').RawHistory} rawHistory
    */
   async storeRaw(projectId, chunkId, rawHistory) {

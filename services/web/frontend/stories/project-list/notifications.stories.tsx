@@ -14,6 +14,8 @@ import {
   setReconfirmationMeta,
 } from './helpers/emails'
 import { useMeta } from '../hooks/use-meta'
+import { SplitTestProvider } from '@/shared/context/split-test-context'
+import React, { ComponentType } from 'react'
 
 export const ProjectInvite = (args: any) => {
   useFetchMock(commonSetupMocks)
@@ -184,7 +186,7 @@ export const NotificationGroupInvitationCancelSubscription = (args: any) => {
     },
   })
 
-  window.metaAttributesCache.set('ol-hasIndividualRecurlySubscription', true)
+  window.metaAttributesCache.set('ol-hasIndividualPaidSubscription', true)
 
   return (
     <ProjectListProvider>
@@ -343,7 +345,11 @@ export const ReconfirmedAffiliationSuccess = (args: any) => {
 export default {
   title: 'Project List / Notifications',
   component: UserNotifications,
-  parameters: {
-    bootstrap5: true,
-  },
+  decorators: [
+    (Story: ComponentType) => (
+      <SplitTestProvider>
+        <Story />
+      </SplitTestProvider>
+    ),
+  ],
 }

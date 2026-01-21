@@ -6,7 +6,7 @@ import FileTreeContext from './file-tree-context'
 import FileTreeDraggablePreviewLayer from './file-tree-draggable-preview-layer'
 import FileTreeFolderList from './file-tree-folder-list'
 import FileTreeToolbar from './file-tree-toolbar'
-import FileTreeToolbarNew from '@/features/ide-redesign/components/file-tree-toolbar'
+import FileTreeToolbarNew from '@/features/ide-redesign/components/file-tree/file-tree-toolbar'
 import FileTreeModalDelete from './modals/file-tree-modal-delete'
 import FileTreeModalCreateFolder from './modals/file-tree-modal-create-folder'
 import FileTreeModalError from './modals/file-tree-modal-error'
@@ -19,7 +19,8 @@ import FileTreeInner from './file-tree-inner'
 import { useDragLayer } from 'react-dnd'
 import classnames from 'classnames'
 import { pathInFolder } from '@/features/file-tree/util/path'
-import { useFeatureFlag } from '@/shared/context/split-test-context'
+import { useIsNewEditorEnabled } from '@/features/ide-redesign/utils/new-editor-utils'
+import { FileTreeFindResult } from '@/features/ide-react/types/file-tree'
 
 const FileTreeRoot = React.memo<{
   onSelect: () => void
@@ -40,10 +41,10 @@ const FileTreeRoot = React.memo<{
 }) {
   const [fileTreeContainer, setFileTreeContainer] =
     useState<HTMLDivElement | null>(null)
-  const { _id: projectId } = useProjectContext()
+  const { projectId } = useProjectContext()
   const { fileTreeData } = useFileTreeData()
   const isReady = Boolean(projectId && fileTreeData)
-  const newEditor = useFeatureFlag('editor-redesign')
+  const newEditor = useIsNewEditorEnabled()
 
   useEffect(() => {
     if (fileTreeContainer) {
@@ -115,7 +116,11 @@ const FileTreeRoot = React.memo<{
   )
 })
 
-function FileTreeRootFolder({ onDelete }: { onDelete: () => void }) {
+function FileTreeRootFolder({
+  onDelete,
+}: {
+  onDelete: (entity: FileTreeFindResult, isFileRestore?: boolean) => void
+}) {
   useFileTreeSocketListener(onDelete)
   const { fileTreeData } = useFileTreeData()
 

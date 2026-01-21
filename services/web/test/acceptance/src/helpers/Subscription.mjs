@@ -1,12 +1,12 @@
-import { db, ObjectId } from '../../../../app/src/infrastructure/mongodb.js'
+import { db, ObjectId } from '../../../../app/src/infrastructure/mongodb.mjs'
 import { expect } from 'chai'
 import { callbackifyClass } from '@overleaf/promise-utils'
-import SubscriptionUpdater from '../../../../app/src/Features/Subscription/SubscriptionUpdater.js'
-import PermissionsManager from '../../../../app/src/Features/Authorization/PermissionsManager.js'
+import SubscriptionUpdater from '../../../../app/src/Features/Subscription/SubscriptionUpdater.mjs'
+import PermissionsManager from '../../../../app/src/Features/Authorization/PermissionsManager.mjs'
 import SSOConfigManager from '../../../../modules/group-settings/app/src/sso/SSOConfigManager.mjs'
-import { Subscription as SubscriptionModel } from '../../../../app/src/models/Subscription.js'
-import { DeletedSubscription as DeletedSubscriptionModel } from '../../../../app/src/models/DeletedSubscription.js'
-import Modules from '../../../../app/src/infrastructure/Modules.js'
+import { Subscription as SubscriptionModel } from '../../../../app/src/models/Subscription.mjs'
+import { DeletedSubscription as DeletedSubscriptionModel } from '../../../../app/src/models/DeletedSubscription.mjs'
+import Modules from '../../../../app/src/infrastructure/Modules.mjs'
 
 class PromisifiedSubscription {
   constructor(options = {}) {
@@ -24,6 +24,9 @@ class PromisifiedSubscription {
     this.features = options.features
     this.ssoConfig = options.ssoConfig
     this.groupPolicy = options.groupPolicy
+    this.addOns = options.addOns
+    this.paymentProvider = options.paymentProvider
+    this.managedUsersEnabled = options.managedUsersEnabled
   }
 
   async ensureExists() {
@@ -41,6 +44,18 @@ class PromisifiedSubscription {
 
   async get() {
     return await db.subscriptions.findOne({ _id: new ObjectId(this._id) })
+  }
+
+  async getSSOConfig() {
+    const subscription = await this.get()
+
+    if (!subscription.ssoConfig) {
+      return
+    }
+
+    return await db.ssoConfigs.findOne({
+      _id: new ObjectId(subscription.ssoConfig),
+    })
   }
 
   async getWithGroupPolicy() {
@@ -71,7 +86,14 @@ class PromisifiedSubscription {
   }
 
   async enableManagedUsers() {
-    await Modules.promises.hooks.fire('enableManagedUsers', this._id)
+    await Modules.promises.hooks.fire('enableManagedUsers', this._id, {
+      initiatorId: this.admin_id,
+      ipAddress: '123.456.789.0',
+    })
+  }
+
+  async disableManagedUsers() {
+    await Modules.promises.hooks.fire('disableManagedUsers', this._id)
   }
 
   async enableFeatureSSO() {
@@ -124,7 +146,11 @@ class PromisifiedSubscription {
     return await Modules.promises.hooks.fire(
       'enrollInManagedSubscription',
       user._id,
-      subscription
+      subscription,
+      {
+        initiatorId: user._id,
+        ipAddress: '0:0:0:0',
+      }
     )
   }
 

@@ -86,6 +86,7 @@ import {
   mathAncestorNode,
   parseMathContainer,
 } from '../../utils/tree-operations/math'
+import { lineContainsOnlyNode } from './utils/line'
 
 type Options = {
   previewByPath: (path: string) => PreviewPath | null
@@ -325,14 +326,20 @@ export const atomicDecorations = (options: Options) => {
                 !selectionIntersects(state.selection, end) &&
                 getListItems(nodeRef.node).length > 0 // not empty
               ) {
-                decorations.push(
-                  Decoration.replace({
-                    block: true,
-                  }).range(begin.from, begin.to),
-                  Decoration.replace({
-                    block: true,
-                  }).range(end.from, end.to)
-                )
+                if (lineContainsOnlyNode(beginLine, beginNode)) {
+                  decorations.push(
+                    Decoration.replace({
+                      block: true,
+                    }).range(begin.from, begin.to)
+                  )
+                }
+                if (lineContainsOnlyNode(endLine, endNode)) {
+                  decorations.push(
+                    Decoration.replace({
+                      block: true,
+                    }).range(end.from, end.to)
+                  )
+                }
               }
             }
           } else if (nodeRef.type.is('TabularEnvironment')) {
@@ -874,11 +881,18 @@ export const atomicDecorations = (options: Options) => {
               )
             )
           }
-        } else if (nodeRef.type.is('IncludeGraphics')) {
-          // \includegraphics with a file path argument
+        } else if (
+          nodeRef.type.is('IncludeGraphics') ||
+          nodeRef.type.is('IncludeSvg')
+        ) {
+          // \includegraphics or \includesvg with a file path argument
+          const isIncludeSvg = nodeRef.type.is('IncludeSvg')
           if (shouldDecorate(state, nodeRef)) {
+            const argumentNodeName = isIncludeSvg
+              ? 'IncludeSvgArgument'
+              : 'IncludeGraphicsArgument'
             const filePathArgument = nodeRef.node
-              .getChild('IncludeGraphicsArgument')
+              .getChild(argumentNodeName)
               ?.getChild('FilePathArgument')
               ?.getChild('LiteralArgContent')
 
@@ -888,6 +902,18 @@ export const atomicDecorations = (options: Options) => {
                 filePathArgument.to
               )
 
+              // \includegraphics doesn't support SVG
+              if (!isIncludeSvg && filePath.toLowerCase().endsWith('.svg')) {
+                return false
+              }
+
+              if (
+                isIncludeSvg &&
+                previewByPath(filePath)?.extension !== 'svg'
+              ) {
+                return false
+              }
+
               if (filePath) {
                 const environmentNode = ancestorNodeOfType(
                   state,
@@ -896,7 +922,7 @@ export const atomicDecorations = (options: Options) => {
                 )
                 const centered = Boolean(
                   environmentNode &&
-                    centeringNodeForEnvironment(environmentNode)
+                  centeringNodeForEnvironment(environmentNode)
                 )
                 const figureData = environmentNode
                   ? parseFigureData(environmentNode, state)
@@ -904,10 +930,7 @@ export const atomicDecorations = (options: Options) => {
 
                 const line = state.doc.lineAt(nodeRef.from)
 
-                const lineContainsOnlyNode =
-                  line.text.trim().length === nodeRef.to - nodeRef.from
-
-                if (lineContainsOnlyNode) {
+                if (lineContainsOnlyNode(line, nodeRef)) {
                   const Widget = state.readOnly
                     ? GraphicsWidget
                     : EditableGraphicsWidget
@@ -994,7 +1017,7 @@ export const atomicDecorations = (options: Options) => {
                   ...decorateArgumentBraces(
                     new BraceWidget(decorateBrackets ? '' : '['),
                     argumentNode,
-                    from,
+                    argumentNode.from,
                     false,
                     new BraceWidget(decorateBrackets ? '' : ']'),
                     { open: OpenBracket, close: CloseBracket }
@@ -1066,6 +1089,44 @@ export const atomicDecorations = (options: Options) => {
               )
             )
           }
+        } else if (
+          nodeRef.type.is('FootnoteCommand') ||
+          nodeRef.type.is('EndnoteCommand')
+        ) {
+          const textArgumentNode = nodeRef.node.getChild('TextArgument')
+          if (textArgumentNode) {
+            if (
+              state.readOnly &&
+              selectionIntersects(state.selection, nodeRef)
+            ) {
+              // a special case for a read-only document:
+              // always display the content, styled differently from the main content.
+              decorations.push(
+                ...decorateArgumentBraces(
+                  new BraceWidget(),
+                  textArgumentNode,
+                  nodeRef.from
+                ),
+                Decoration.mark({
+                  class: 'ol-cm-footnote ol-cm-footnote-view',
+                }).range(textArgumentNode.from, textArgumentNode.to)
+              )
+            } else {
+              if (shouldDecorate(state, nodeRef)) {
+                // collapse the footnote when the selection is outside it
+                decorations.push(
+                  Decoration.replace({
+                    widget: new FootnoteWidget(
+                      nodeRef.type.is('FootnoteCommand')
+                        ? 'footnote'
+                        : 'endnote'
+                    ),
+                  }).range(nodeRef.from, nodeRef.to)
+                )
+                return false
+              }
+            }
+          }
         } else if (nodeRef.type.is('UnknownCommand')) {
           // a command that's not defined separately by the grammar
           const commandNode = nodeRef.node
@@ -1090,43 +1151,6 @@ export const atomicDecorations = (options: Options) => {
                     )
                   )
                   return false
-                }
-              } else if (
-                commandName === '\\footnote' ||
-                commandName === '\\endnote'
-              ) {
-                if (textArgumentNode) {
-                  if (
-                    state.readOnly &&
-                    selectionIntersects(state.selection, nodeRef)
-                  ) {
-                    // a special case for a read-only document:
-                    // always display the content, styled differently from the main content.
-                    decorations.push(
-                      ...decorateArgumentBraces(
-                        new BraceWidget(),
-                        textArgumentNode,
-                        nodeRef.from
-                      ),
-                      Decoration.mark({
-                        class: 'ol-cm-footnote ol-cm-footnote-view',
-                      }).range(textArgumentNode.from, textArgumentNode.to)
-                    )
-                  } else {
-                    if (shouldDecorate(state, nodeRef)) {
-                      // collapse the footnote when the selection is outside it
-                      decorations.push(
-                        Decoration.replace({
-                          widget: new FootnoteWidget(
-                            commandName === '\\footnote'
-                              ? 'footnote'
-                              : 'endnote'
-                          ),
-                        }).range(nodeRef.from, nodeRef.to)
-                      )
-                      return false
-                    }
-                  }
                 }
               } else if (commandName === '\\LaTeX') {
                 if (shouldDecorate(state, nodeRef)) {

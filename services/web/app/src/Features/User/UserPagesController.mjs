@@ -1,18 +1,18 @@
-import UserGetter from './UserGetter.js'
+import UserGetter from './UserGetter.mjs'
 import OError from '@overleaf/o-error'
-import UserSessionsManager from './UserSessionsManager.js'
+import UserSessionsManager from './UserSessionsManager.mjs'
 import logger from '@overleaf/logger'
 import Settings from '@overleaf/settings'
-import AuthenticationController from '../Authentication/AuthenticationController.js'
-import SessionManager from '../Authentication/SessionManager.js'
-import NewsletterManager from '../Newsletter/NewsletterManager.js'
-import SubscriptionLocator from '../Subscription/SubscriptionLocator.js'
+import AuthenticationController from '../Authentication/AuthenticationController.mjs'
+import SessionManager from '../Authentication/SessionManager.mjs'
+import NewsletterManager from '../Newsletter/NewsletterManager.mjs'
+import SubscriptionLocator from '../Subscription/SubscriptionLocator.mjs'
 import _ from 'lodash'
 const passport = require('passport')
 import { expressify } from '@overleaf/promise-utils'
-import Features from '../../infrastructure/Features.js'
-import SplitTestHandler from '../SplitTests/SplitTestHandler.js'
-import Modules from '../../infrastructure/Modules.js'
+import Features from '../../infrastructure/Features.mjs'
+import Modules from '../../infrastructure/Modules.mjs'
+import SplitTestHandler from '../SplitTests/SplitTestHandler.mjs'
 
 async function settingsPage(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
@@ -118,14 +118,7 @@ async function settingsPage(req, res) {
     )
   }
 
-  // Get the user's assignment for this page's Bootstrap 5 split test, which
-  // populates splitTestVariants with a value for the split test name and allows
-  // Pug to read it
-  await SplitTestHandler.promises.getAssignment(req, res, 'bootstrap-5')
-  // Get the users write-and-cite assignment to switch between translation strings
-  await SplitTestHandler.promises.getAssignment(req, res, 'write-and-cite')
-  // Get the users papers-integration assignment to show the linking widget
-  await SplitTestHandler.promises.getAssignment(req, res, 'papers-integration')
+  await SplitTestHandler.promises.getAssignment(req, res, 'email-notifications')
 
   res.render('user/settings', {
     title: 'account_settings',
@@ -159,6 +152,7 @@ async function settingsPage(req, res) {
         enabled: Boolean(user.aiErrorAssistant?.enabled),
       },
     },
+    labsExperiments: user.labsExperiments ?? [],
     hasPassword: !!user.hashedPassword,
     shouldAllowEditingDetails,
     oauthProviders: UserPagesController._translateProviderDescriptions(
@@ -185,6 +179,7 @@ async function settingsPage(req, res) {
     gitBridgeEnabled: Settings.enableGitBridge,
     isSaas: Features.hasFeature('saas'),
     memberOfSSOEnabledGroups,
+    capabilities: [...req.capabilitySet],
   })
 }
 
@@ -201,16 +196,8 @@ async function reconfirmAccountPage(req, res) {
   const pageData = {
     reconfirm_email: req.session.reconfirm_email,
   }
-  const { variant } = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'auth-pages-bs5'
-  )
 
-  const template =
-    variant === 'enabled' ? 'user/reconfirm-bs5' : 'user/reconfirm'
-
-  res.render(template, pageData)
+  res.render('user/reconfirm', pageData)
 }
 
 const UserPagesController = {
@@ -241,9 +228,15 @@ const UserPagesController = {
     ) {
       AuthenticationController.setRedirectInSession(req, req.query.redir)
     }
+    const metadata = { robotsNoindexNofollow: false }
+    if (Object.keys(req.query).length !== 0) {
+      metadata.robotsNoindexNofollow = true
+    }
     res.render('user/login', {
       title: Settings.nav?.login_support_title || 'login',
+      login_support_title: Settings.nav?.login_support_title,
       login_support_text: Settings.nav?.login_support_text,
+      metadata,
     })
   },
 
@@ -319,7 +312,7 @@ const UserPagesController = {
     )
   },
 
-  compromisedPasswordPage(_, res) {
+  async compromisedPasswordPage(req, res) {
     res.render('user/compromised_password')
   },
 

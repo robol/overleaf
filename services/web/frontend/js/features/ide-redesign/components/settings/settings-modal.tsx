@@ -1,31 +1,55 @@
-import OLModal, {
+import {
+  OLModal,
   OLModalBody,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
-import { useLayoutContext } from '@/shared/context/layout-context'
+} from '@/shared/components/ol/ol-modal'
 import { useTranslation } from 'react-i18next'
 import { SettingsModalBody } from './settings-modal-body'
+import {
+  SettingsModalProvider,
+  useSettingsModalContext,
+} from '../../contexts/settings-modal-context'
+import useFocusOnSetting from '../../hooks/use-focus-on-setting'
+
+const SettingsModalWrapper = () => {
+  return (
+    <SettingsModalProvider>
+      <SettingsModal />
+    </SettingsModalProvider>
+  )
+}
 
 const SettingsModal = () => {
-  // TODO ide-redesign-cleanup: Either rename the field, or introduce a separate
-  // one
-  const { leftMenuShown, setLeftMenuShown } = useLayoutContext()
   const { t } = useTranslation()
+  const { show, setShow, settingsTabs, activeTab, setActiveTab } =
+    useSettingsModalContext()
+
+  useFocusOnSetting()
+
   return (
     <OLModal
-      show={leftMenuShown}
-      onHide={() => setLeftMenuShown(false)}
+      show={show}
+      onHide={() => setShow(false)}
       size="lg"
+      backdropClassName={
+        activeTab === 'appearance'
+          ? 'ide-settings-modal-transparent-backdrop'
+          : undefined
+      }
     >
-      <OLModalHeader closeButton>
+      <OLModalHeader>
         <OLModalTitle>{t('settings')}</OLModalTitle>
       </OLModalHeader>
       <OLModalBody className="ide-settings-modal-body">
-        <SettingsModalBody />
+        <SettingsModalBody
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          settingsTabs={settingsTabs}
+        />
       </OLModalBody>
     </OLModal>
   )
 }
 
-export default SettingsModal
+export default SettingsModalWrapper

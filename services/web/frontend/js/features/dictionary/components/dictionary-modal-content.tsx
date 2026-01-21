@@ -8,12 +8,11 @@ import {
   OLModalFooter,
   OLModalHeader,
   OLModalTitle,
-} from '@/features/ui/components/ol/ol-modal'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
-import OLNotification from '@/features/ui/components/ol/ol-notification'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import OLIconButton from '@/features/ui/components/ol/ol-icon-button'
-import { bsVersion } from '@/features/utils/bootstrap-5'
+} from '@/shared/components/ol/ol-modal'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
+import OLNotification from '@/shared/components/ol/ol-notification'
+import OLButton from '@/shared/components/ol/ol-button'
+import OLIconButton from '@/shared/components/ol/ol-icon-button'
 import { learnedWords as initialLearnedWords } from '@/features/source-editor/extensions/spelling/learned-words'
 
 type DictionaryModalContentProps = {
@@ -34,7 +33,7 @@ export default function DictionaryModalContent({
   const { isError, runAsync } = useAsync()
 
   const handleRemove = useCallback(
-    word => {
+    (word: string) => {
       runAsync(postJSON('/spelling/unlearn', { body: { word } }))
         .then(() => {
           setLearnedWords(prevLearnedWords => {
@@ -53,7 +52,7 @@ export default function DictionaryModalContent({
 
   return (
     <>
-      <OLModalHeader closeButton>
+      <OLModalHeader>
         <OLModalTitle>{t('edit_dictionary')}</OLModalTitle>
       </OLModalHeader>
 
@@ -69,7 +68,9 @@ export default function DictionaryModalContent({
           <ul className="list-unstyled dictionary-entries-list">
             {[...learnedWords].sort(wordsSortFunction).map(learnedWord => (
               <li key={learnedWord} className="dictionary-entry">
-                <span className="dictionary-entry-name">{learnedWord}</span>
+                <span className="dictionary-entry-name" translate="no">
+                  {learnedWord}
+                </span>
                 <OLTooltip
                   id={`tooltip-remove-learned-word-${learnedWord}`}
                   description={t('edit_dictionary_remove')}
@@ -79,13 +80,7 @@ export default function DictionaryModalContent({
                     variant="danger"
                     size="sm"
                     onClick={() => handleRemove(learnedWord)}
-                    bs3Props={{ bsSize: 'xsmall' }}
-                    icon={
-                      bsVersion({
-                        bs5: 'delete',
-                        bs3: 'trash-o',
-                      }) as string
-                    }
+                    icon="delete"
                     accessibilityLabel={t('edit_dictionary_remove')}
                   />
                 </OLTooltip>

@@ -16,6 +16,10 @@ import {
   syncDelete,
   syncMove,
   syncCreateEntity,
+  NewDocEntity,
+  NewLinkedFileEntity,
+  NewEntity,
+  syncRootDocId,
 } from '../util/sync-mutation'
 import { findInTree, findInTreeOrThrow } from '../util/find-in-tree'
 import { isNameUniqueInFolder } from '../util/is-name-unique-in-folder'
@@ -34,7 +38,9 @@ import {
 import { Folder } from '../../../../../types/folder'
 import { useReferencesContext } from '@/features/ide-react/context/references-context'
 import { usePermissionsContext } from '@/features/ide-react/context/permissions-context'
-import { fileUrl } from '@/features/utils/fileUrl'
+import { FileTreeEntity } from '@ol-types/file-tree-entity'
+import { Doc } from '@ol-types/doc'
+import { isValidTeXFile } from '@/main/is-valid-tex-file'
 
 type DroppedFile = File & {
   relativePath?: string
@@ -53,10 +59,11 @@ const FileTreeActionableContext = createContext<
       isCreatingFolder: boolean
       isMoving: boolean
       inFlight: boolean
-      actionedEntities: any | null
+      actionedEntities: FileTreeEntity[] | null
       newFileCreateMode: any | null
       error: any | null
       canDelete: boolean
+      canBulkDelete: boolean
       canRename: boolean
       canCreate: boolean
       parentFolderId: string
@@ -72,12 +79,18 @@ const FileTreeActionableContext = createContext<
       finishCreatingFolder: any
       startCreatingDocOrFile: any
       startUploadingDocOrFile: any
-      finishCreatingDoc: any
-      finishCreatingLinkedFile: any
+      finishCreatingDoc: (
+        entity: Omit<NewDocEntity, 'endpoint'>
+      ) => Promise<Doc | undefined>
+      finishCreatingLinkedFile: (
+        entity: Omit<NewLinkedFileEntity, 'endpoint'>
+      ) => Promise<{ new_file_id: string } | undefined>
       cancel: () => void
       droppedFiles: { files: File[]; targetFolderId: string } | null
       setDroppedFiles: (value: DroppedFiles | null) => void
       downloadPath?: string
+      canSetRootDocId: boolean
+      setRootDocId: () => Promise<void>
     }
   | undefined
 >(undefined)
@@ -105,7 +118,7 @@ type State = {
   isCreatingFolder: boolean
   isMoving: boolean
   inFlight: boolean
-  actionedEntities: any | null
+  actionedEntities: FileTreeEntity[] | null
   newFileCreateMode: any | null
   error: unknown | null
 }
@@ -132,7 +145,7 @@ type Action =
     }
   | {
       type: ACTION_TYPES.START_DELETE
-      actionedEntities: any | null
+      actionedEntities: FileTreeEntity[] | null
     }
   | {
       type: ACTION_TYPES.START_CREATE_FILE
@@ -218,11 +231,15 @@ function fileTreeActionableReducer(state: State, action: Action) {
   }
 }
 
-export const FileTreeActionableProvider: FC = ({ children }) => {
-  const { _id: projectId } = useProjectContext()
+export const FileTreeActionableProvider: FC<React.PropsWithChildren> = ({
+  children,
+}) => {
+  const { projectId, project, updateProject } = useProjectContext()
   const { fileTreeReadOnly } = useFileTreeData()
   const { indexAllReferences } = useReferencesContext()
   const { write } = usePermissionsContext()
+
+  const rootDocId = project?.rootDocId
 
   const [state, dispatch] = useReducer(
     fileTreeReadOnly
@@ -400,7 +417,7 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
   }, [fileTreeData, selectedEntityIds])
 
   const finishCreatingEntity = useCallback(
-    entity => {
+    (entity: NewEntity) => {
       const error = validateCreate(fileTreeData, parentFolderId, entity)
       if (error) {
         return Promise.reject(error)
@@ -412,7 +429,7 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
   )
 
   const finishCreatingFolder = useCallback(
-    name => {
+    (name: string) => {
       dispatch({ type: ACTION_TYPES.CREATING_FOLDER })
       return finishCreatingEntity({ endpoint: 'folder', name })
         .then(() => {
@@ -425,7 +442,7 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
     [finishCreatingEntity]
   )
 
-  const startCreatingFile = useCallback(newFileCreateMode => {
+  const startCreatingFile = useCallback((newFileCreateMode: any) => {
     dispatch({ type: ACTION_TYPES.START_CREATE_FILE, newFileCreateMode })
   }, [])
 
@@ -437,33 +454,40 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
     startCreatingFile('upload')
   }, [startCreatingFile])
 
+  type FinishCreatingDocOrFileReturn<T> = T extends NewDocEntity
+    ? Promise<Doc | undefined>
+    : T extends NewLinkedFileEntity
+      ? Promise<{ new_file_id: string } | undefined>
+      : never
+
   const finishCreatingDocOrFile = useCallback(
-    entity => {
+    <T extends NewDocEntity | NewLinkedFileEntity>(
+      entity: T
+    ): FinishCreatingDocOrFileReturn<T> => {
       dispatch({ type: ACTION_TYPES.CREATING_FILE })
 
       return finishCreatingEntity(entity)
-        .then(() => {
+        .then(docOrFile => {
           dispatch({ type: ACTION_TYPES.CLEAR })
+          return docOrFile
         })
         .catch(error => {
           dispatch({ type: ACTION_TYPES.ERROR, error })
-        })
+        }) as FinishCreatingDocOrFileReturn<T>
     },
     [finishCreatingEntity]
   )
 
   const finishCreatingDoc = useCallback(
-    entity => {
-      entity.endpoint = 'doc'
-      return finishCreatingDocOrFile(entity)
+    (entity: Omit<NewDocEntity, 'endpoint'>) => {
+      return finishCreatingDocOrFile({ ...entity, endpoint: 'doc' })
     },
     [finishCreatingDocOrFile]
   )
 
   const finishCreatingLinkedFile = useCallback(
-    entity => {
-      entity.endpoint = 'linked_file'
-      return finishCreatingDocOrFile(entity)
+    (entity: Omit<NewLinkedFileEntity, 'endpoint'>) => {
+      return finishCreatingDocOrFile({ ...entity, endpoint: 'linked_file' })
     },
     [finishCreatingDocOrFile]
   )
@@ -495,7 +519,7 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
       const selectedEntity = findInTree(fileTreeData, selectedEntityId)
 
       if (selectedEntity?.type === 'fileRef') {
-        return fileUrl(projectId, selectedEntityId, selectedEntity.entity.hash)
+        return `/project/${projectId}/blob/${selectedEntity.entity.hash}`
       }
 
       if (selectedEntity?.type === 'doc') {
@@ -504,9 +528,39 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
     }
   }, [fileTreeData, projectId, selectedEntityIds])
 
+  const canSetRootDocId = useMemo(() => {
+    // must have write permission on the project
+    if (!write) {
+      return false
+    }
+
+    // must be only one file selected
+    if (!selectedFileName) {
+      return false
+    }
+
+    // must not already be the root doc
+    if (rootDocId && selectedEntityIds.has(rootDocId)) {
+      return false
+    }
+
+    // must have a valid root doc extension
+    return isValidTeXFile(selectedFileName)
+  }, [rootDocId, selectedEntityIds, selectedFileName, write])
+
+  const setRootDocId = useCallback(async () => {
+    const [selectedEntityId] = selectedEntityIds
+
+    await syncRootDocId(projectId, selectedEntityId)
+
+    updateProject({ rootDocId: selectedEntityId })
+  }, [projectId, selectedEntityIds, updateProject])
+
   const value = useMemo(
     () => ({
       canDelete: write && selectedEntityIds.size > 0 && !isRootFolderSelected,
+      canBulkDelete:
+        write && selectedEntityIds.size > 1 && !isRootFolderSelected,
       canRename: write && selectedEntityIds.size === 1 && !isRootFolderSelected,
       canCreate: write && selectedEntityIds.size < 2,
       ...state,
@@ -529,6 +583,8 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
       droppedFiles,
       setDroppedFiles,
       downloadPath,
+      canSetRootDocId,
+      setRootDocId,
     }),
     [
       cancel,
@@ -543,8 +599,8 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
       isDuplicate,
       isRootFolderSelected,
       parentFolderId,
-      selectedEntityIds.size,
       selectedFileName,
+      selectedEntityIds.size,
       startCreatingDocOrFile,
       startCreatingFile,
       startCreatingFolder,
@@ -553,6 +609,8 @@ export const FileTreeActionableProvider: FC = ({ children }) => {
       startUploadingDocOrFile,
       state,
       write,
+      canSetRootDocId,
+      setRootDocId,
     ]
   )
 

@@ -12,7 +12,7 @@ import {
   CustomSubscription,
   ManagedGroupSubscription,
   MemberGroupSubscription,
-  RecurlySubscription,
+  PaidSubscription,
 } from '../../../../../types/subscription/dashboard/subscription'
 import {
   Plan,
@@ -22,7 +22,8 @@ import { Institution } from '../../../../../types/institution'
 import getMeta from '../../../utils/meta'
 import {
   loadDisplayPriceWithTaxPromise,
-  loadGroupDisplayPriceWithTaxPromise,
+  loadGroupDisplayPriceWithTaxForRecurlyPromise,
+  loadGroupDisplayPriceWithTaxForStripePromise,
 } from '../util/recurly-pricing'
 import { isRecurlyLoaded } from '../util/is-recurly-loaded'
 import { SubscriptionDashModalIds } from '../../../../../types/subscription/dashboard/modal-ids'
@@ -52,7 +53,7 @@ type SubscriptionDashboardContextValue = {
   managedPublishers: Publisher[]
   updateManagedInstitution: (institution: ManagedInstitution) => void
   modalIdShown?: SubscriptionDashModalIds
-  personalSubscription?: RecurlySubscription | CustomSubscription
+  personalSubscription?: PaidSubscription | CustomSubscription
   hasSubscription: boolean
   plans: Plan[]
   planCodeToChangeTo?: string
@@ -128,29 +129,29 @@ export function SubscriptionDashboardProvider({
 
   const hasDisplayedSubscription = Boolean(
     institutionMemberships?.length > 0 ||
-      personalSubscription ||
-      memberGroupSubscriptions?.length > 0 ||
-      managedGroupSubscriptions?.length > 0 ||
-      managedInstitutions?.length > 0 ||
-      managedPublishers?.length > 0
+    personalSubscription ||
+    memberGroupSubscriptions?.length > 0 ||
+    managedGroupSubscriptions?.length > 0 ||
+    managedInstitutions?.length > 0 ||
+    managedPublishers?.length > 0
   )
 
   const hasValidActiveSubscription = Boolean(
-    ['active', 'canceled'].includes(personalSubscription?.recurly?.state) ||
-      institutionMemberships?.length > 0 ||
-      memberGroupSubscriptions?.length > 0
+    ['active', 'canceled'].includes(personalSubscription?.payment?.state) ||
+    institutionMemberships?.length > 0 ||
+    memberGroupSubscriptions?.length > 0
   )
 
   const getFormattedRenewalDate = useCallback(() => {
     if (
-      !personalSubscription.recurly.pausedAt ||
-      !personalSubscription.recurly.remainingPauseCycles
+      !personalSubscription.payment.pausedAt ||
+      !personalSubscription.payment.remainingPauseCycles
     ) {
-      return personalSubscription.recurly.nextPaymentDueAt
+      return personalSubscription.payment.nextPaymentDueAt
     }
-    const pausedDate = new Date(personalSubscription.recurly.pausedAt)
+    const pausedDate = new Date(personalSubscription.payment.pausedAt)
     pausedDate.setMonth(
-      pausedDate.getMonth() + personalSubscription.recurly.remainingPauseCycles
+      pausedDate.getMonth() + personalSubscription.payment.remainingPauseCycles
     )
     return formatTime(pausedDate, 'MMMM Do, YYYY')
   }, [personalSubscription])
@@ -167,9 +168,9 @@ export function SubscriptionDashboardProvider({
     if (
       isRecurlyLoaded() &&
       plansWithoutDisplayPrice &&
-      personalSubscription?.recurly
+      personalSubscription?.payment
     ) {
-      const { currency, taxRate } = personalSubscription.recurly
+      const { currency, taxRate } = personalSubscription.payment
       const fetchPlansDisplayPrices = async () => {
         for (const plan of plansWithoutDisplayPrice) {
           try {
@@ -199,36 +200,46 @@ export function SubscriptionDashboardProvider({
 
   useEffect(() => {
     if (
-      isRecurlyLoaded() &&
-      groupPlanToChangeToCode &&
-      groupPlanToChangeToSize &&
-      groupPlanToChangeToUsage &&
-      personalSubscription?.recurly
+      !groupPlanToChangeToCode ||
+      !groupPlanToChangeToSize ||
+      !groupPlanToChangeToUsage ||
+      !personalSubscription?.payment
     ) {
-      setQueryingGroupPlanToChangeToPrice(true)
-
-      const { currency, taxRate } = personalSubscription.recurly
-      const fetchGroupDisplayPrice = async () => {
-        setGroupPlanToChangeToPriceError(false)
-        let priceData
-        try {
-          priceData = await loadGroupDisplayPriceWithTaxPromise(
-            groupPlanToChangeToCode,
-            currency,
-            taxRate,
-            groupPlanToChangeToSize,
-            groupPlanToChangeToUsage,
-            i18n.language
-          )
-        } catch (e) {
-          debugConsole.error(e)
-          setGroupPlanToChangeToPriceError(true)
-        }
-        setQueryingGroupPlanToChangeToPrice(false)
-        setGroupPlanToChangeToPrice(priceData)
-      }
-      fetchGroupDisplayPrice()
+      return
     }
+
+    let loadGroupDisplayPrice
+    if (personalSubscription.service?.includes('stripe')) {
+      loadGroupDisplayPrice = loadGroupDisplayPriceWithTaxForStripePromise
+    } else if (isRecurlyLoaded()) {
+      loadGroupDisplayPrice = loadGroupDisplayPriceWithTaxForRecurlyPromise
+    } else {
+      return
+    }
+
+    setQueryingGroupPlanToChangeToPrice(true)
+
+    const { currency, taxRate } = personalSubscription.payment
+    const fetchGroupDisplayPrice = async () => {
+      setGroupPlanToChangeToPriceError(false)
+      let priceData
+      try {
+        priceData = await loadGroupDisplayPrice(
+          groupPlanToChangeToCode,
+          currency,
+          taxRate,
+          groupPlanToChangeToSize,
+          groupPlanToChangeToUsage,
+          i18n.language
+        )
+      } catch (e) {
+        debugConsole.error(e)
+        setGroupPlanToChangeToPriceError(true)
+      }
+      setQueryingGroupPlanToChangeToPrice(false)
+      setGroupPlanToChangeToPrice(priceData)
+    }
+    fetchGroupDisplayPrice()
   }, [
     groupPlanToChangeToUsage,
     groupPlanToChangeToSize,
@@ -256,7 +267,7 @@ export function SubscriptionDashboardProvider({
   }, [setModalIdShown, setPlanCodeToChangeTo])
 
   const handleOpenModal = useCallback(
-    (id, planCode) => {
+    (id: SubscriptionDashModalIds, planCode?: string) => {
       setModalIdShown(id)
       setPlanCodeToChangeTo(planCode)
     },

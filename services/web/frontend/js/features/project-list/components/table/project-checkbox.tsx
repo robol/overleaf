@@ -1,7 +1,7 @@
-import { memo, useCallback } from 'react'
+import { ChangeEvent, memo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useProjectListContext } from '@/features/project-list/context/project-list-context'
-import OLFormCheckbox from '@/features/ui/components/ol/ol-form-checkbox'
+import OLFormCheckbox from '@/shared/components/ol/ol-form-checkbox'
 
 export const ProjectCheckbox = memo<{ projectId: string; projectName: string }>(
   ({ projectId, projectName }) => {
@@ -10,7 +10,7 @@ export const ProjectCheckbox = memo<{ projectId: string; projectName: string }>(
       useProjectListContext()
 
     const handleCheckboxChange = useCallback(
-      event => {
+      (event: ChangeEvent<HTMLInputElement>) => {
         toggleSelectedProject(projectId, event.target.checked)
       },
       [projectId, toggleSelectedProject]

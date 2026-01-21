@@ -66,6 +66,7 @@
   },
   "healthCheckBlobs": "HEALTH_CHECK_BLOBS",
   "healthCheckProjects": "HEALTH_CHECK_PROJECTS",
+  "backupRPOInMS": "BACKUP_RPO_IN_MS",
   "minSoftDeletionPeriodDays": "MIN_SOFT_DELETION_PERIOD_DAYS",
   "mongo": {
     "uri": "MONGO_CONNECTION_STRING"
@@ -83,11 +84,29 @@
   "maxFileUploadSize": "MAX_FILE_UPLOAD_SIZE",
   "httpsOnly": "HTTPS_ONLY",
   "httpRequestTimeout": "HTTP_REQUEST_TIMEOUT",
+  "historyBufferLevel": "HISTORY_BUFFER_LEVEL",
+  "forcePersistBuffer": "FORCE_PERSIST_BUFFER",
+  "nextHistoryBufferLevel": "NEXT_HISTORY_BUFFER_LEVEL",
+  "nextHistoryBufferLevelRolloutPercentage": "NEXT_HISTORY_BUFFER_LEVEL_ROLLOUT_PERCENTAGE",
   "redis": {
     "queue": {
+      "host": "QUEUES_REDIS_HOST",
+      "password": "QUEUES_REDIS_PASSWORD",
+      "port": "QUEUES_REDIS_PORT"
+    },
+    "history": {
+      "host": "HISTORY_REDIS_HOST",
+      "password": "HISTORY_REDIS_PASSWORD",
+      "port": "HISTORY_REDIS_PORT"
+    },
+    "lock": {
       "host": "REDIS_HOST",
       "password": "REDIS_PASSWORD",
       "port": "REDIS_PORT"
     }
+  },
+  "projectHistory": {
+    "host": "PROJECT_HISTORY_HOST",
+    "port": "PROJECT_HISTORY_PORT"
   }
 }

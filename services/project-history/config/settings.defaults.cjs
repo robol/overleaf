@@ -41,6 +41,9 @@ module.exports = {
         10
       ),
     },
+    project_history: {
+      url: `http://${process.env.PROJECT_HISTORY_HOST || '127.0.0.1'}:3054`,
+    },
   },
   redis: {
     lock: {
@@ -103,4 +106,12 @@ module.exports = {
   },
 
   maxFileSizeInBytes: 100 * 1024 * 1024, // 100 megabytes
+
+  shortHistoryQueues: (process.env.SHORT_HISTORY_QUEUES || '')
+    .split(',')
+    .filter(s => !!s),
+  estimateCompressionSample: parseInt(
+    process.env.ESTIMATE_COMPRESSION_SAMPLE || '0',
+    10
+  ),
 }

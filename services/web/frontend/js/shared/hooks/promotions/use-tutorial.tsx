@@ -4,7 +4,18 @@ import { postJSON } from '@/infrastructure/fetch-json'
 import { debugConsole } from '@/utils/debugging'
 import { useEditorContext } from '@/shared/context/editor-context'
 
-export const useTutorial = (
+type CompleteTutorialParams = {
+  event: string
+  action: 'complete' | 'postpone'
+} & Record<string, any>
+
+type CompleteTutorialOptions = {
+  // Whether to ignore errors if the request fails. Defaults to true. If
+  // successfull completion is required, set this to false.
+  failSilently?: boolean
+}
+
+const useTutorial = (
   tutorialKey: string,
   eventData: Record<string, any> = {}
 ) => {
@@ -14,18 +25,22 @@ export const useTutorial = (
     useEditorContext()
 
   const completeTutorial = useCallback(
-    async ({
-      event = 'promo-click',
-      action = 'complete',
-      ...rest
-    }: {
-      event: 'promo-click' | 'promo-dismiss'
-      action: 'complete' | 'postpone'
-    } & Record<string, any>) => {
+    async (
+      {
+        event = 'promo-click',
+        action = 'complete',
+        ...rest
+      }: CompleteTutorialParams,
+      options: CompleteTutorialOptions = {}
+    ) => {
       eventTracking.sendMB(event, { ...eventData, ...rest })
       try {
         await postJSON(`/tutorial/${tutorialKey}/${action}`)
       } catch (err) {
+        const failSilently = options.failSilently ?? true
+        if (!failSilently) {
+          throw err
+        }
         debugConsole.error(err)
       }
       setShowPopup(false)
@@ -34,12 +49,15 @@ export const useTutorial = (
     [deactivateTutorial, eventData, tutorialKey]
   )
 
-  const dismissTutorial = useCallback(async () => {
-    await completeTutorial({
-      event: 'promo-dismiss',
-      action: 'complete',
-    })
-  }, [completeTutorial])
+  const dismissTutorial = useCallback(
+    async (eventName: string = 'promo-dismiss') => {
+      await completeTutorial({
+        event: eventName,
+        action: 'complete',
+      })
+    },
+    [completeTutorial]
+  )
 
   const maybeLater = useCallback(async () => {
     await completeTutorial({

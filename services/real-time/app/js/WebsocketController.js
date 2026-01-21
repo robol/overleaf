@@ -1,18 +1,21 @@
-const OError = require('@overleaf/o-error')
-const logger = require('@overleaf/logger')
-const metrics = require('@overleaf/metrics')
-const WebApiManager = require('./WebApiManager')
-const AuthorizationManager = require('./AuthorizationManager')
-const DocumentUpdaterManager = require('./DocumentUpdaterManager')
-const ConnectedUsersManager = require('./ConnectedUsersManager')
-const WebsocketLoadBalancer = require('./WebsocketLoadBalancer')
-const RoomManager = require('./RoomManager')
+import OError from '@overleaf/o-error'
+import logger from '@overleaf/logger'
+import metrics from '@overleaf/metrics'
+import WebApiManager from './WebApiManager.js'
+import AuthorizationManager from './AuthorizationManager.js'
+import DocumentUpdaterManager from './DocumentUpdaterManager.js'
+import ConnectedUsersManager from './ConnectedUsersManager.js'
+import WebsocketLoadBalancer from './WebsocketLoadBalancer.js'
+import RoomManager from './RoomManager.js'
+import Errors from './Errors.js'
+
 const {
+  CodedError,
   JoinLeaveEpochMismatchError,
   NotAuthorizedError,
   NotJoinedError,
   ClientRequestedMissingOpsError,
-} = require('./Errors')
+} = Errors
 
 const JOIN_DOC_CATCH_UP_LENGTH_BUCKETS = [
   0, 5, 10, 25, 50, 100, 150, 200, 250, 500, 1000,
@@ -34,7 +37,8 @@ const JOIN_DOC_CATCH_UP_AGE = [
 ].map(x => x * 1000)
 
 let WebsocketController
-module.exports = WebsocketController = {
+
+export default WebsocketController = {
   // If the protocol version changes when the client reconnects,
   // it will force a full refresh of the page. Useful for non-backwards
   // compatible protocol changes. Use only in extreme need.
@@ -283,7 +287,7 @@ module.exports = WebsocketController = {
             projectId,
             docId,
             fromVersion,
-            function (error, lines, version, ranges, ops, ttlInS) {
+            function (error, lines, version, ranges, ops, ttlInS, type) {
               if (error) {
                 if (error instanceof ClientRequestedMissingOpsError) {
                   emitJoinDocCatchUpMetrics('missing', error.info)
@@ -307,36 +311,53 @@ module.exports = WebsocketController = {
               // See http://ecmanaut.blogspot.co.uk/2006/07/encoding-decoding-utf8-in-javascript.html
               const encodeForWebsockets = text =>
                 unescape(encodeURIComponent(text))
-              const escapedLines = []
-              for (let line of lines) {
-                try {
-                  line = encodeForWebsockets(line)
-                } catch (err) {
-                  OError.tag(err, 'error encoding line uri component', { line })
-                  return callback(err)
+              metrics.inc('client_supports_history_v1_ot', 1, {
+                status: options.supportsHistoryOT ? 'success' : 'failure',
+              })
+              let escapedLines
+              if (type === 'history-ot') {
+                if (!options.supportsHistoryOT) {
+                  RoomManager.leaveDoc(client, docId)
+                  // TODO(24596): ask the user to reload the editor page (via out-of-sync modal when there are pending ops).
+                  return callback(
+                    new CodedError('client does not support history-ot')
+                  )
                 }
-                escapedLines.push(line)
-              }
-              if (options.encodeRanges) {
-                try {
-                  for (const comment of (ranges && ranges.comments) || []) {
-                    if (comment.op.c) {
-                      comment.op.c = encodeForWebsockets(comment.op.c)
-                    }
+                escapedLines = lines
+              } else {
+                escapedLines = []
+                for (let line of lines) {
+                  try {
+                    line = encodeForWebsockets(line)
+                  } catch (err) {
+                    OError.tag(err, 'error encoding line uri component', {
+                      line,
+                    })
+                    return callback(err)
                   }
-                  for (const change of (ranges && ranges.changes) || []) {
-                    if (change.op.i) {
-                      change.op.i = encodeForWebsockets(change.op.i)
+                  escapedLines.push(line)
+                }
+                if (options.encodeRanges) {
+                  try {
+                    for (const comment of (ranges && ranges.comments) || []) {
+                      if (comment.op.c) {
+                        comment.op.c = encodeForWebsockets(comment.op.c)
+                      }
                     }
-                    if (change.op.d) {
-                      change.op.d = encodeForWebsockets(change.op.d)
+                    for (const change of (ranges && ranges.changes) || []) {
+                      if (change.op.i) {
+                        change.op.i = encodeForWebsockets(change.op.i)
+                      }
+                      if (change.op.d) {
+                        change.op.d = encodeForWebsockets(change.op.d)
+                      }
                     }
+                  } catch (err) {
+                    OError.tag(err, 'error encoding range uri component', {
+                      ranges,
+                    })
+                    return callback(err)
                   }
-                } catch (err) {
-                  OError.tag(err, 'error encoding range uri component', {
-                    ranges,
-                  })
-                  return callback(err)
                 }
               }
 
@@ -351,7 +372,7 @@ module.exports = WebsocketController = {
                 },
                 'client joined doc'
               )
-              callback(null, escapedLines, version, ops, ranges)
+              callback(null, escapedLines, version, ops, ranges, type)
             }
           )
         })

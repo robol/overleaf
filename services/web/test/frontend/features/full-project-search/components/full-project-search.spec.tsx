@@ -1,4 +1,3 @@
-import '../../../helpers/bootstrap-5'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import FullProjectSearch from '../../../../../modules/full-project-search/frontend/js/components/full-project-search'
 import {
@@ -94,9 +93,14 @@ const createInitialValue = () =>
     pdfPreviewOpen: false,
     projectSearchIsOpen: true,
     setProjectSearchIsOpen: cy.stub(),
+    openFile: null,
+    setOpenFile: cy.stub(),
+    restoreView: cy.stub(),
+    handleChangeLayout: cy.stub(),
+    handleDetach: cy.stub(),
   }) satisfies LayoutContextValue
 
-const LayoutProvider: FC = ({ children }) => {
+const LayoutProvider: FC<React.PropsWithChildren> = ({ children }) => {
   const [value] = useState(createInitialValue)
 
   return (

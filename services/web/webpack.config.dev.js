@@ -1,9 +1,8 @@
+const path = require('path')
 const webpack = require('webpack')
 const { merge } = require('webpack-merge')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const ReactRefreshWebpackPlugin = require('@pmmmwh/react-refresh-webpack-plugin')
-
-process.env.REACT_REFRESH = '1'
 
 const base = require('./webpack.config')
 
@@ -24,6 +23,17 @@ module.exports = merge(base, {
   // Enable accurate source maps for dev
   devtool:
     process.env.CSP_ENABLED === 'true' ? 'source-map' : 'eval-source-map',
+
+  cache: {
+    type: 'filesystem',
+    buildDependencies: {
+      config: [
+        __filename,
+        path.resolve(__dirname, 'webpack.config.js'),
+        path.resolve(__dirname, 'config/settings.webpack.js'),
+      ],
+    },
+  },
 
   // Load entrypoints without contenthash in filename
   output: {
@@ -57,13 +67,14 @@ module.exports = merge(base, {
       filename: 'stylesheets/[name].css',
     }),
 
-    new ReactRefreshWebpackPlugin({
-      exclude: [
-        /node_modules/, // default
-        /source-editor/, // avoid crashing the source editor
-      ],
-      overlay: false,
-    }),
+    process.env.REACT_REFRESH_ENABLED === 'true' &&
+      new ReactRefreshWebpackPlugin({
+        exclude: [
+          /node_modules/, // default
+          /source-editor/, // avoid crashing the source editor
+        ],
+        overlay: false,
+      }),
 
     // Disable React DevTools if DISABLE_REACT_DEVTOOLS is set to "true"
     process.env.DISABLE_REACT_DEVTOOLS === 'true' &&
@@ -86,6 +97,7 @@ module.exports = merge(base, {
       devServer.app.get('/status', (req, res) => res.send('webpack is up'))
       return middlewares
     },
+    compress: false,
   },
 
   // Customise output to the (node) console
@@ -93,4 +105,9 @@ module.exports = merge(base, {
     preset: 'minimal',
     colors: true,
   },
+
+  ignoreWarnings: [
+    // ignore some "Can't resolve '*'" warnings for dynamically-imported optional peer dependencies
+    /@ai-sdk\/provider-utils\/dist/,
+  ],
 })

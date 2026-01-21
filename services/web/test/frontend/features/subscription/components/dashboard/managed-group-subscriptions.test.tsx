@@ -138,14 +138,14 @@ describe('<ManagedGroupSubscriptions />', function () {
     expect(links[10].getAttribute('href')).to.equal(
       '/manage/groups/group2abc/managers'
     )
-    expect(links[11].getAttribute('href')).to.equal('/metrics/groups/group2abc')
-    expect(links[13].getAttribute('href')).to.equal(
+    expect(links[12].getAttribute('href')).to.equal('/metrics/groups/group2abc')
+    expect(links[14].getAttribute('href')).to.equal(
       '/manage/groups/group123abc/members'
     )
-    expect(links[14].getAttribute('href')).to.equal(
+    expect(links[15].getAttribute('href')).to.equal(
       '/manage/groups/group123abc/managers'
     )
-    expect(links[15].getAttribute('href')).to.equal(
+    expect(links[17].getAttribute('href')).to.equal(
       '/metrics/groups/group123abc'
     )
   })
@@ -177,6 +177,37 @@ describe('<ManagedGroupSubscriptions />', function () {
       .be.null
   })
 
+  it('does not render the Group Audit Log settings row when the user is not the group admin', function () {
+    renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+      metaTags: [
+        {
+          name: 'ol-managedGroupSubscriptions',
+          value: managedGroupSubscriptions2,
+        },
+        {
+          name: 'ol-groupSettingsEnabledFor',
+          value: [],
+        },
+      ],
+    })
+
+    expect(screen.queryByText('Audit logs')).to.be.null
+  })
+
+  it('renders the Group Audit Log settings row when the user is the group admin', async function () {
+    renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
+      metaTags: [
+        {
+          name: 'ol-managedGroupSubscriptions',
+          value: managedGroupSubscriptions,
+        },
+        { name: 'ol-usersEmail', value: 'admin@example.com' },
+      ],
+    })
+
+    await screen.findAllByText('Audit logs')
+  })
+
   it('renders Managed Group / Group SSO settings row when both features are turned on', async function () {
     renderWithSubscriptionDashContext(<ManagedGroupSubscriptions />, {
       metaTags: [
@@ -190,7 +221,7 @@ describe('<ManagedGroupSubscriptions />', function () {
         },
       ],
     })
-    await screen.findAllByText('Manage group settings')
+    await screen.findAllByText('Group settings')
     await screen.findAllByText('Configure and manage SSO and Managed Users')
   })
 
@@ -207,7 +238,7 @@ describe('<ManagedGroupSubscriptions />', function () {
         },
       ],
     })
-    await screen.findAllByText('Manage group settings')
+    await screen.findAllByText('Group settings')
     await screen.findAllByText('Turn on Managed Users')
     expect(screen.queryByText('Configure and manage SSO and Managed Users')).to
       .not.exist
@@ -227,7 +258,7 @@ describe('<ManagedGroupSubscriptions />', function () {
         },
       ],
     })
-    await screen.findAllByText('Manage group settings')
+    await screen.findAllByText('Group settings')
     await screen.findAllByText('Configure and manage SSO')
     expect(screen.queryByText('Turn on Managed Users')).to.not.exist
     expect(screen.queryByText('Configure and manage SSO and Managed Users')).to

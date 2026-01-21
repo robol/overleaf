@@ -2,7 +2,15 @@ import {
   useCodeMirrorStateContext,
   useCodeMirrorViewContext,
 } from './codemirror-context'
-import { FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  FC,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { runScopeHandlers } from '@codemirror/view'
 import {
   closeSearchPanel,
@@ -15,21 +23,21 @@ import {
   getSearchQuery,
   SearchCursor,
 } from '@codemirror/search'
-import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
-import OLButton from '@/features/ui/components/ol/ol-button'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
+import OLTooltip from '@/shared/components/ol/ol-tooltip'
+import OLButton from '@/shared/components/ol/ol-button'
 import MaterialIcon from '@/shared/components/material-icon'
-import OLButtonGroup from '@/features/ui/components/ol/ol-button-group'
-import OLFormControl from '@/features/ui/components/ol/ol-form-control'
-import OLCloseButton from '@/features/ui/components/ol/ol-close-button'
+import OLButtonGroup from '@/shared/components/ol/ol-button-group'
+import OLFormControl from '@/shared/components/ol/ol-form-control'
+import OLCloseButton from '@/shared/components/ol/ol-close-button'
 import { useTranslation } from 'react-i18next'
-import Icon from '../../../shared/components/icon'
 import classnames from 'classnames'
 import { useUserSettingsContext } from '@/shared/context/user-settings-context'
 import { getStoredSelection, setStoredSelection } from '../extensions/search'
 import { debounce } from 'lodash'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { sendSearchEvent } from '@/features/event-tracking/search-events'
+import { FullProjectSearchButton } from './full-project-search-button'
+import { isInvalidRegExp } from '../utils/regexp'
 
 const MATCH_COUNT_DEBOUNCE_WAIT = 100 // the amount of ms to wait before counting matches
 const MAX_MATCH_COUNT = 999 // the maximum number of matches to count
@@ -48,7 +56,7 @@ type MatchPositions = {
   interrupted: boolean
 }
 
-const CodeMirrorSearchForm: FC = () => {
+const CodeMirrorSearchForm: FC<React.PropsWithChildren> = () => {
   const view = useCodeMirrorViewContext()
   const state = useCodeMirrorStateContext()
 
@@ -74,7 +82,7 @@ const CodeMirrorSearchForm: FC = () => {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const replaceRef = useRef<HTMLInputElement | null>(null)
 
-  const handleInputRef = useCallback(node => {
+  const handleInputRef = useCallback((node: HTMLInputElement) => {
     inputRef.current = node
 
     // focus the search input when the panel opens
@@ -84,11 +92,11 @@ const CodeMirrorSearchForm: FC = () => {
     }
   }, [])
 
-  const handleReplaceRef = useCallback(node => {
+  const handleReplaceRef = useCallback((node: HTMLInputElement) => {
     replaceRef.current = node
   }, [])
 
-  const handleSubmit = useCallback(event => {
+  const handleSubmit = useCallback((event: FormEvent) => {
     event.preventDefault()
   }, [])
 
@@ -121,8 +129,8 @@ const CodeMirrorSearchForm: FC = () => {
   }, [handleChange, state, view])
 
   const handleFormKeyDown = useCallback(
-    event => {
-      if (runScopeHandlers(view, event, 'search-panel')) {
+    (event: React.KeyboardEvent<HTMLFormElement>) => {
+      if (runScopeHandlers(view, event.nativeEvent, 'search-panel')) {
         event.preventDefault()
       }
     },
@@ -131,7 +139,7 @@ const CodeMirrorSearchForm: FC = () => {
 
   // Returns true if the event was handled, false otherwise
   const handleEmacsNavigation = useCallback(
-    event => {
+    (event: KeyboardEvent) => {
       const emacsCtrlSeq =
         emacsKeybindingsActive &&
         event.ctrlKey &&
@@ -159,7 +167,14 @@ const CodeMirrorSearchForm: FC = () => {
           event.stopPropagation()
           event.preventDefault()
           closeSearchPanel(view)
-          document.dispatchEvent(new CustomEvent('cm:emacs-close-search-panel'))
+          // Wait for the search panel to close before moving the cursor
+          window.setTimeout(
+            () =>
+              document.dispatchEvent(
+                new CustomEvent('cm:emacs-close-search-panel')
+              ),
+            0
+          )
           return true
         }
         default: {
@@ -171,7 +186,7 @@ const CodeMirrorSearchForm: FC = () => {
   )
 
   const handleSearchKeyDown = useCallback(
-    event => {
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
       switch (event.key) {
         case 'Enter':
           event.preventDefault()
@@ -187,13 +202,13 @@ const CodeMirrorSearchForm: FC = () => {
           }
           break
       }
-      handleEmacsNavigation(event)
+      handleEmacsNavigation(event.nativeEvent)
     },
     [view, handleEmacsNavigation, emacsKeybindingsActive]
   )
 
   const handleReplaceKeyDown = useCallback(
-    event => {
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
       switch (event.key) {
         case 'Enter':
           event.preventDefault()
@@ -212,7 +227,7 @@ const CodeMirrorSearchForm: FC = () => {
           }
         }
       }
-      handleEmacsNavigation(event)
+      handleEmacsNavigation(event.nativeEvent)
     },
     [view, handleEmacsNavigation]
   )
@@ -239,8 +254,7 @@ const CodeMirrorSearchForm: FC = () => {
       <div className="ol-cm-search-controls">
         <span
           className={classnames('ol-cm-search-input-group', {
-            'ol-cm-search-input-error':
-              query.regexp && isInvalidRegExp(query.search),
+            'ol-cm-search-input-error': query.regexp && isInvalidRegExp(query),
           })}
         >
           <OLFormControl
@@ -328,10 +342,7 @@ const CodeMirrorSearchForm: FC = () => {
               htmlFor={withinSelectionId}
               aria-label={t('search_within_selection')}
             >
-              <BootstrapVersionSwitcher
-                bs3={<Icon type="align-left" fw />}
-                bs5={<MaterialIcon type="format_align_left" />}
-              />
+              <MaterialIcon type="format_align_left" />
             </label>
           </OLTooltip>
         </span>
@@ -411,20 +422,9 @@ const CodeMirrorSearchForm: FC = () => {
               size="sm"
               onClick={() => findPrevious(view)}
             >
-              <BootstrapVersionSwitcher
-                bs3={
-                  <Icon
-                    type="chevron-up"
-                    fw
-                    accessibilityLabel={t('search_previous')}
-                  />
-                }
-                bs5={
-                  <MaterialIcon
-                    type="keyboard_arrow_up"
-                    accessibilityLabel={t('search_previous')}
-                  />
-                }
+              <MaterialIcon
+                type="keyboard_arrow_up"
+                accessibilityLabel={t('search_previous')}
               />
             </OLButton>
 
@@ -433,31 +433,24 @@ const CodeMirrorSearchForm: FC = () => {
               size="sm"
               onClick={() => findNext(view)}
             >
-              <BootstrapVersionSwitcher
-                bs3={
-                  <Icon
-                    type="chevron-down"
-                    fw
-                    accessibilityLabel={t('search_next')}
-                  />
-                }
-                bs5={
-                  <MaterialIcon
-                    type="keyboard_arrow_down"
-                    accessibilityLabel={t('search_next')}
-                  />
-                }
+              <MaterialIcon
+                type="keyboard_arrow_down"
+                accessibilityLabel={t('search_next')}
               />
             </OLButton>
           </OLButtonGroup>
 
-          {position !== null && (
-            <div className="ol-cm-search-form-position">
-              {position.current === null ? '?' : position.current} {t('of')}{' '}
-              {position.total}
-              {position.interrupted && '+'}
-            </div>
-          )}
+          <FullProjectSearchButton query={query} />
+
+          <div className="ol-cm-search-form-position">
+            {position !== null && (
+              <>
+                {position.current === null ? '?' : position.current} {t('of')}{' '}
+                {position.total}
+                {position.interrupted && '+'}
+              </>
+            )}
+          </div>
         </div>
 
         {showReplace && (
@@ -502,15 +495,6 @@ const CodeMirrorSearchForm: FC = () => {
       </div>
     </form>
   )
-}
-
-function isInvalidRegExp(source: string) {
-  try {
-    RegExp(source)
-    return false
-  } catch {
-    return true
-  }
 }
 
 export default CodeMirrorSearchForm

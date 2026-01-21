@@ -5,6 +5,7 @@ import { useCallback } from 'react'
 import { ActiveDropdown } from '../../../hooks/use-dropdown-active-item'
 import RestoreProject from './menu-item/restore-project'
 import { usePermissionsContext } from '@/features/ide-react/context/permissions-context'
+import { useHistoryContext } from '@/features/history/context/history-context'
 
 type VersionDropdownContentProps = {
   projectId: string
@@ -19,6 +20,9 @@ function HistoryDropdownContent({
   closeDropdownForItem,
   endTimestamp,
 }: VersionDropdownContentProps) {
+  const { updatesInfo } = useHistoryContext()
+  const isCurrentVersion = version === updatesInfo.updates[0].toV
+
   const closeDropdown = useCallback(() => {
     closeDropdownForItem(version, 'moreOptions')
   }, [closeDropdownForItem, version])
@@ -28,18 +32,14 @@ function HistoryDropdownContent({
   return (
     <>
       {permissions.labelVersion && (
-        <AddLabel
-          projectId={projectId}
-          version={version}
-          closeDropdown={closeDropdown}
-        />
+        <AddLabel version={version} closeDropdown={closeDropdown} />
       )}
       <Download
         projectId={projectId}
         version={version}
         closeDropdown={closeDropdown}
       />
-      {permissions.write && (
+      {permissions.write && !isCurrentVersion && (
         <RestoreProject
           projectId={projectId}
           version={version}

@@ -3,19 +3,20 @@ import { useSubscriptionDashboardContext } from '../../context/subscription-dash
 import { useCallback, useMemo, useState } from 'react'
 import { postJSON } from '@/infrastructure/fetch-json'
 import { useLocation } from '@/shared/hooks/use-location'
-import OLModal, {
+import {
+  OLModal,
   OLModalBody,
   OLModalHeader,
-} from '@/features/ui/components/ol/ol-modal'
+} from '@/shared/components/ol/ol-modal'
 import { Select } from '@/shared/components/select'
-import OLFormGroup from '@/features/ui/components/ol/ol-form-group'
-import Button from '@/features/ui/components/bootstrap-5/button'
-import { Stack } from 'react-bootstrap-5'
+import OLFormGroup from '@/shared/components/ol/ol-form-group'
+import Button from '@/shared/components/button/button'
+import { Stack } from 'react-bootstrap'
 import { debugConsole } from '@/utils/debugging'
 import * as eventTracking from '../../../../infrastructure/event-tracking'
-import PauseDuck from './pause-duck.svg'
+import PauseDuck from '../../images/pause-duck.svg'
 import GenericErrorAlert from './generic-error-alert'
-import { RecurlySubscription } from '../../../../../../types/subscription/dashboard/subscription'
+import { PaidSubscription } from '../../../../../../types/subscription/dashboard/subscription'
 
 const pauseMonthDurationOptions = [1, 2, 3]
 
@@ -35,13 +36,13 @@ export default function PauseSubscriptionModal() {
   const location = useLocation()
 
   function handleCancelSubscriptionClick() {
-    const subscription = personalSubscription as RecurlySubscription
+    const subscription = personalSubscription as PaidSubscription
     eventTracking.sendMB('subscription-page-cancel-button-click', {
       plan_code: subscription?.planCode,
       is_trial:
-        subscription?.recurly.trialEndsAtFormatted &&
-        subscription?.recurly.trial_ends_at &&
-        new Date(subscription.recurly.trial_ends_at).getTime() > Date.now(),
+        subscription?.payment.trialEndsAtFormatted &&
+        subscription?.payment.trialEndsAt &&
+        new Date(subscription.payment.trialEndsAt).getTime() > Date.now(),
     })
     setShowCancellation(true)
   }
@@ -88,7 +89,7 @@ export default function PauseSubscriptionModal() {
       backdrop="static"
     >
       <OLModalBody>
-        <OLModalHeader closeButton style={{ border: 0 }} />
+        <OLModalHeader style={{ border: 0 }} />
         <img
           src={PauseDuck}
           alt="Need to duck out for a while?"

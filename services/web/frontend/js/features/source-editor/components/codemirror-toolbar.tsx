@@ -1,4 +1,11 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import {
+  ElementType,
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import {
   useCodeMirrorStateContext,
@@ -20,6 +27,22 @@ import { minimumListDepthForSelection } from '../utils/tree-operations/ancestors
 import { debugConsole } from '@/utils/debugging'
 import { useTranslation } from 'react-i18next'
 import { ToggleSearchButton } from '@/features/source-editor/components/toolbar/toggle-search-button'
+import ReviewPanelHeader from '@/features/review-panel/components/review-panel-header'
+import useReviewPanelLayout from '@/features/review-panel/hooks/use-review-panel-layout'
+import { useIsNewEditorEnabled } from '@/features/ide-redesign/utils/new-editor-utils'
+import Breadcrumbs from '@/features/ide-redesign/components/breadcrumbs'
+import classNames from 'classnames'
+import { useUserSettingsContext } from '@/shared/context/user-settings-context'
+import { useFeatureFlag } from '@/shared/context/split-test-context'
+import importOverleafModules from '../../../../macros/import-overleaf-module.macro'
+
+const sourceEditorToolbarComponents = importOverleafModules(
+  'sourceEditorToolbarComponents'
+) as { import: { default: ElementType }; path: string }[]
+
+const sourceEditorToolbarEndButtons = importOverleafModules(
+  'sourceEditorToolbarEndButtons'
+) as { import: { default: ElementType }; path: string }[]
 
 export const CodeMirrorToolbar = () => {
   const view = useCodeMirrorViewContext()
@@ -36,6 +59,10 @@ const Toolbar = memo(function Toolbar() {
   const { t } = useTranslation()
   const state = useCodeMirrorStateContext()
   const view = useCodeMirrorViewContext()
+  const {
+    userSettings: { breadcrumbs },
+  } = useUserSettingsContext()
+  const visualPreviewEnabled = useFeatureFlag('visual-preview')
 
   const [overflowed, setOverflowed] = useState(false)
 
@@ -45,6 +72,9 @@ const Toolbar = memo(function Toolbar() {
   const visual = isVisual(view)
 
   const listDepth = minimumListDepthForSelection(state)
+
+  const newEditor = useIsNewEditorEnabled()
+  const { showHeader: showReviewPanelHeader } = useReviewPanelLayout()
 
   const {
     open: overflowOpen,
@@ -98,7 +128,7 @@ const Toolbar = memo(function Toolbar() {
   // calculate overflow when buttons change
   const observerRef = useRef<MutationObserver | null>(null)
   const handleButtons = useCallback(
-    node => {
+    (node: HTMLDivElement) => {
       if (!('MutationObserver' in window)) {
         return
       }
@@ -131,50 +161,71 @@ const Toolbar = memo(function Toolbar() {
   const showActions = !state.readOnly && !insideTable
 
   return (
-    <div
-      role="toolbar"
-      aria-label={t('toolbar_editor')}
-      className="ol-cm-toolbar toolbar-editor"
-      ref={elementRef}
-    >
-      <EditorSwitch />
-      {showActions && (
-        <ToolbarItems
-          state={state}
-          languageName={languageName}
-          visual={visual}
-          listDepth={listDepth}
-        />
-      )}
-
-      <div className="ol-cm-toolbar-button-group ol-cm-toolbar-stretch">
-        {showActions && (
-          <ToolbarOverflow
-            overflowed={overflowed}
-            overflowOpen={overflowOpen}
-            setOverflowOpen={setOverflowOpen}
-            overflowRef={overflowRef}
-          >
+    <>
+      {newEditor && showReviewPanelHeader && <ReviewPanelHeader />}
+      <div
+        id="ol-cm-toolbar-wrapper"
+        className={classNames('ol-cm-toolbar-wrapper', {
+          'ol-cm-toolbar-wrapper-indented': newEditor && showReviewPanelHeader,
+        })}
+      >
+        <div
+          role="toolbar"
+          aria-label={t('toolbar_editor')}
+          className="ol-cm-toolbar toolbar-editor"
+          ref={elementRef}
+        >
+          {!visualPreviewEnabled && <EditorSwitch />}
+          {showActions && (
             <ToolbarItems
               state={state}
-              overflowed={overflowedItemsRef.current}
               languageName={languageName}
               visual={visual}
               listDepth={listDepth}
             />
-          </ToolbarOverflow>
-        )}
-      </div>
+          )}
 
-      <div
-        className="ol-cm-toolbar-button-group ol-cm-toolbar-end"
-        ref={handleButtons}
-      >
-        <ToggleSearchButton state={state} />
-        <SwitchToPDFButton />
-        <DetacherSynctexControl />
-        <DetachCompileButtonWrapper />
+          <div className="ol-cm-toolbar-button-group ol-cm-toolbar-stretch">
+            {showActions && (
+              <ToolbarOverflow
+                overflowed={overflowed}
+                overflowOpen={overflowOpen}
+                setOverflowOpen={setOverflowOpen}
+                overflowRef={overflowRef}
+              >
+                <ToolbarItems
+                  state={state}
+                  overflowed={overflowedItemsRef.current}
+                  languageName={languageName}
+                  visual={visual}
+                  listDepth={listDepth}
+                />
+              </ToolbarOverflow>
+            )}
+          </div>
+
+          <div
+            className="ol-cm-toolbar-button-group ol-cm-toolbar-end"
+            ref={handleButtons}
+          >
+            {sourceEditorToolbarEndButtons.map(
+              ({ import: { default: Component }, path }) => (
+                <Component key={path} />
+              )
+            )}
+            <ToggleSearchButton state={state} />
+            <SwitchToPDFButton />
+            <DetacherSynctexControl />
+            <DetachCompileButtonWrapper />
+          </div>
+        </div>
+        {sourceEditorToolbarComponents.map(
+          ({ import: { default: Component }, path }) => (
+            <Component key={path} />
+          )
+        )}
+        {newEditor && breadcrumbs && <Breadcrumbs />}
       </div>
-    </div>
+    </>
   )
 })

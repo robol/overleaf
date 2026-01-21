@@ -5,7 +5,7 @@ import { useProjectContext } from '@/shared/context/project-context'
 import { useUserContext } from '@/shared/context/user-context'
 import { sendMB } from '@/infrastructure/event-tracking'
 import StartFreeTrialButton from '@/shared/components/start-free-trial-button'
-import OLButton from '@/features/ui/components/ol/ol-button'
+import OLButton from '@/shared/components/ol/ol-button'
 
 type AccessLevelsChangedProps = {
   somePendingEditorsResolved: boolean
@@ -29,11 +29,11 @@ export default function AccessLevelsChanged({
         }
         content={
           somePendingEditorsResolved ? (
-            <p>{t('your_project_exceeded_editor_limit')}</p>
+            <p>{t('your_project_exceeded_collaborator_limit')}</p>
           ) : (
             <p>
-              {t('this_project_exceeded_editor_limit')}{' '}
-              {t('you_can_select_or_invite', {
+              {t('this_project_exceeded_collaborator_limit')}{' '}
+              {t('you_can_select_or_invite_collaborator', {
                 count: features.collaborators,
               })}
             </p>
