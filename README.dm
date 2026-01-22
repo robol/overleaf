@@ -1,3 +1,20 @@
+# Gestione delle versioni
+
+Overleaf non dichiara pubblicamente quale commit nel repo github corrispone ad una specifica versione. Tuttavia, 
+pare che l'informazione sia recuperabile a posteriori. Ad esempio, per determinare il commit della versione x.y.z, 
+basta pullare l'immagine e fare il giusto inspect sui dati:
+
+```bash
+docker pull sharelatex/sharelatex:x.y.z
+docker inspect sharelatex/sharelatex:6.1.0 --format='{{index .Config.Labels "com.overleaf.ce.revision"}}'
+```
+
+Per comodità, ho scritto uno script ```update-overleaf.sh``` che fa pull + merge in automatico, e che si 
+usa nel seguente modo:
+```bash
+$ ./update-overleaf.sh x.y.z
+```
+
 # MongoDB
 To start mongodb on a clean instance, follow these steps:
 
