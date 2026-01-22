@@ -1,6 +1,8 @@
 #!/bin/bash
 #
 
+set -e
+
 version=$1
 
 if [ "$version" = "" ]; then
@@ -22,6 +24,9 @@ read ans
 if [ "$ans" = "y" ]; then
   git fetch https://github.com/overleaf/overleaf main
   git merge ${commit}
+
+  echo ""
+  echo "After everything is merged, you may want to tag this release with: git tag ${version}"
 else
   echo "Aborting."
   exit 1
