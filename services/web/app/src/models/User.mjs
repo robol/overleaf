@@ -227,6 +227,7 @@ export const UserSchema = new Schema(
     dsMobileApp: {
       subscribed: { type: Boolean },
     },
+    openid_managed: { type: Boolean, default: false },
   },
   { minimize: false }
 )

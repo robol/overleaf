@@ -20,6 +20,7 @@ function AccountInfoSection() {
   const isExternalAuthenticationSystemUsed = getMeta(
     'ol-isExternalAuthenticationSystemUsed'
   )
+  const isOpenidManaged = getMeta('ol-openid-managed')
   const shouldAllowEditingDetails = getMeta('ol-shouldAllowEditingDetails')
   const {
     first_name: initialFirstName,
@@ -49,8 +50,8 @@ function AccountInfoSection() {
   }
 
   const canUpdateEmail =
-    !hasAffiliationsFeature && !isExternalAuthenticationSystemUsed
-  const canUpdateNames = shouldAllowEditingDetails
+    !hasAffiliationsFeature && !isExternalAuthenticationSystemUsed &&!isOpenidManaged
+  const canUpdateNames = shouldAllowEditingDetails &&!isOpenidManaged
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()

@@ -223,8 +223,11 @@ passport.use(
     AuthenticationController.doPassportLogin
   )
 )
-// OAuth2 support
-passport.use(
+
+// OAuth2 support - only enabled if the relevant settings are provided
+if (process.env.OAUTH2_CLIENT_ID && process.env.OAUTH2_CLIENT_SECRET && process.env.OAUTH2_AUTHORIZE_URL && process.env.OAUTH2_TOKEN_URL) {
+  logger.debug('OAuth2Strategy enabled for passport authentication')
+  passport.use(
   new OAuth2Strategy({
     authorizationURL: process.env.OAUTH2_AUTHORIZE_URL,
     tokenURL: process.env.OAUTH2_TOKEN_URL,
@@ -235,6 +238,10 @@ passport.use(
   },
   AuthenticationController.doOAuth2PassportLogin)
 )
+} else {
+  logger.debug('OAuth2Strategy not enabled - missing environment variables')
+}
+
 passport.serializeUser(AuthenticationController.serializeUser)
 passport.deserializeUser(AuthenticationController.deserializeUser)
 
