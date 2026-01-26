@@ -69,6 +69,7 @@ services:
       - filestore-public-files:/overleaf/services/filestore/public_files
       - filestore-template-files:/overleaf/services/filestore/template_files
       - filestore-uploads:/overleaf/services/filestore/uploads
+      - history-v1-buckets:/buckets
 
   history-v1:
     build:
@@ -76,18 +77,11 @@ services:
       dockerfile: services/history-v1/Dockerfile
     env_file:
         - dev.env
-    environment:
-      OVERLEAF_EDITOR_ANALYTICS_BUCKET: "/buckets/analytics"
-      OVERLEAF_EDITOR_BLOBS_BUCKET: "/buckets/blobs"
-      OVERLEAF_EDITOR_CHUNKS_BUCKET: "/buckets/chunks"
-      OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET: "/buckets/project_blobs"
-      OVERLEAF_EDITOR_ZIPS_BUCKET: "/buckets/zips"
-      PERSISTOR_BACKEND: fs
     volumes:
         - history-v1-buckets:/buckets
 
   mongo:
-    image: mongo:6.0
+    image: mongo:8.0
     command: --replSet overleaf
     ports:
       - "127.0.0.1:27017:27017" # for debugging
@@ -154,6 +148,7 @@ services:
     volumes:
       - sharelatex-data:/var/lib/overleaf
       - web-data:/overleaf/services/web/data
+      - filestore-uploads:/overleaf/services/web/data/uploads
     depends_on:
       - mongo
       - redis
