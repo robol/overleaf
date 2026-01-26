@@ -333,6 +333,7 @@ export interface Meta {
   'ol-writefullEnabled': boolean
   'ol-writefullEnv': WritefullPublicEnv
   'ol-wsUrl': string
+  'ol-openidManaged': boolean
 }
 
 type DeepPartial<T> =

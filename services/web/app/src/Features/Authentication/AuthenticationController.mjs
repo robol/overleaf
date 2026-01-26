@@ -146,7 +146,6 @@ const AuthenticationController = {
   },
 
   oAuth2PassportLogin(req, res, next) {
-    console.log("oauth2PassportLogin")
     const redir = AuthenticationController.getRedirectFromSession(req) || '/project';
     console.log(redir)
     res.redirect(redir);
@@ -216,7 +215,6 @@ const AuthenticationController = {
   },
 
   async doOAuth2PassportLogin(accessToken, refreshToken, profile, cb) {
-    console.log(cb)
     try {
       const url = process.env.OAUTH2_USERINFO_URL;
       
@@ -234,6 +232,12 @@ const AuthenticationController = {
 
       const user = await User.findOne({ email: email });
       if (user) {
+        // Update user info from OAuth provider
+        user.first_name = first_name;
+        user.last_name = last_name;
+        user.openid_managed = true;
+        await user.save();
+
         cb(null, user);
       } else {
         console.log("Creating user");
@@ -242,6 +246,7 @@ const AuthenticationController = {
           first_name: first_name,
           last_name: last_name,
           password: randomBytes(32).toString("hex"),
+          openid_managed: true,
           'emails.0.confirmedAt': Date.now(),
           'emails.0.email': email,
           'emails.0.reversedHostname': email.split('@')[1].split("").reverse().join("")

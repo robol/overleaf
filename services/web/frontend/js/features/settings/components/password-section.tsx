@@ -23,10 +23,11 @@ type PasswordUpdateResult = {
 function PasswordSection() {
   const { t } = useTranslation()
   const hideChangePassword = getMeta('ol-cannot-change-password')
+  const isOpenidManaged = getMeta('ol-openid-managed')
   return (
     <>
       <h3>{t('change_password')}</h3>
-      {hideChangePassword ? (
+      {(hideChangePassword || isOpenidManaged) ? (
         <CanOnlyLogInThroughSSO />
       ) : (
         <PasswordInnerSection />

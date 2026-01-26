@@ -72,6 +72,8 @@ async function settingsPage(req, res) {
     )
   }
 
+  const openidManaged = user.openid_managed ?? false
+
   let personalAccessTokens
   try {
     const results = await Modules.promises.hooks.fire(
@@ -180,6 +182,7 @@ async function settingsPage(req, res) {
     isSaas: Features.hasFeature('saas'),
     memberOfSSOEnabledGroups,
     capabilities: [...req.capabilitySet],
+    openidManaged,
   })
 }
 
