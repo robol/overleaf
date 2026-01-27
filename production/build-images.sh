@@ -48,3 +48,6 @@ for dir in ../services/*/ ; do
 
     echo "--------------------------"
 done
+
+echo "Building the texlive image ... "
+docker build ../develop/texlive -t texlive-full

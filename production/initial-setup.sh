@@ -24,8 +24,10 @@ cd ..
 echo "done"
 
 echo -n "Generating secret tokens ... "
-echo "OT_JWT_AUTH_KEY=$(randomToken)" >  secrets.env
-echo "SESSION_SECRET=$(randomToken)"  >> secrets.env
+echo "OT_JWT_AUTH_KEY=$(randomToken)"  >  secrets.env
+echo "SESSION_SECRET=$(randomToken)"   >> secrets.env
+echo "WEB_API_USER=$(randomToken)"     >> secrets.env
+echo "WEB_API_PASSWORD=$(randomToken)" >> secrets.env
 echo "done"
 
 if [ -x oauth2.env ]; then
