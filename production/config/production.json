@@ -1,0 +1,26 @@
+{
+  "persistor": {
+    "backend": "fs",
+    "useSubdirectories": true
+  },
+  "basicHttpAuth": {
+    "password": "password"
+  },
+  "useDeleteObjects": "false",
+  "jwtAuth": {
+    "algorithm": "HS256"
+  },
+  "mongo": {
+    "uri": "mongodb://mongo/sharelatex?directConnection=true"
+  },
+  "blobStore": {
+    "globalBucket": "/buckets/blobs",
+    "projectBucket": "/buckets/project_blobs"
+  },
+  "chunkStore": {
+    "bucket": "/buckets/chunks"
+  },
+  "zipStore": {
+    "bucket": "/buckets/zip"
+  }
+}
