@@ -233,7 +233,7 @@ if (process.env.OAUTH2_CLIENT_ID && process.env.OAUTH2_CLIENT_SECRET && process.
     tokenURL: process.env.OAUTH2_TOKEN_URL,
     clientID: process.env.OAUTH2_CLIENT_ID,
     clientSecret: process.env.OAUTH2_CLIENT_SECRET,
-    callbackURL: process.env.OVERLEAF_SITE_URL + "/oauth2/callback",
+    callbackURL: Settings.siteUrl + "/oauth2/callback",
     scope: 'openid'
   },
   AuthenticationController.doOAuth2PassportLogin)

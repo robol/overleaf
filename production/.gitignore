@@ -2,3 +2,4 @@ data/*
 compiles/*
 output/*
 oauth2.env
+secrets.env

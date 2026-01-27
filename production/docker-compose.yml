@@ -6,11 +6,13 @@ services:
     image: robol/chat:latest
     env_file:
       - production.env
+      - secrets.env
 
   clsi:
     image: robol/clsi:latest
     env_file:
       - production.env
+      - secrets.env
     environment:
       - TEXLIVE_IMAGE=texlive-full
       - SANDBOXED_COMPILES=true
@@ -33,6 +35,7 @@ services:
       - redis
     env_file:
       - production.env
+      - secrets.env
 
   docstore:
     image: robol/docstore:latest
@@ -41,6 +44,8 @@ services:
       - redis
     env_file:
       - production.env
+      - secrets.env
+
 
   document-updater:
     image: robol/document-updater:latest
@@ -49,6 +54,7 @@ services:
       - redis
     env_file:
       - production.env
+      - secrets.env
 
   filestore:
     image: robol/filestore:latest
@@ -57,6 +63,7 @@ services:
       - redis
     env_file:
       - production.env
+      - secrets.env
     volumes:
       - ./data/filestore-public-files:/overleaf/services/filestore/public_files
       - ./data/filestore-template-files:/overleaf/services/filestore/template_files
@@ -67,6 +74,7 @@ services:
     image: robol/history-v1:latest
     env_file:
       - production.env
+      - secrets.env
     depends_on:
       - redis
       - mongo
@@ -92,6 +100,7 @@ services:
       - redis
     env_file:
       - production.env
+      - secrets.env
 
   project-history:
     image: robol/project-history:latest
@@ -100,6 +109,7 @@ services:
       - redis
     env_file:
       - production.env
+      - secrets.env
 
   real-time:
     image: robol/real-time:latest
@@ -108,6 +118,7 @@ services:
       - redis
     env_file:
       - production.env
+      - secrets.env
 
   redis:
     image: redis:6
@@ -118,6 +129,8 @@ services:
     image: robol/web:latest
     env_file:
       - path: production.env
+        required: true
+      - path: secrets.env
         required: true
       - path: oauth2.env
         required: false
