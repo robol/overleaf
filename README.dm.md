@@ -75,8 +75,9 @@ Dopo aver aggiornato a Mongo 8.0
  Una volta completata la migrazione, si può partire con l'immagine nuova.
 
 # Pushare l'immagine
-
+```bash
  make -C server-ce build-base
  make -C server-ce build-community
  sudo docker tag sharelatex/sharelatex:main robol/sharelatex:main
  sudo docker push robol/sharelatex:main
+```
