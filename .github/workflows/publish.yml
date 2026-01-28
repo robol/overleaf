@@ -37,7 +37,7 @@ jobs:
           - { name: nginx,            context: production/nginx, dockerfile: production/nginx/Dockerfile }
 
           # --- TeXLive ---
-          - { name: texlive-full,     context: develop/texlive, dockerfile: develop/texlive/Dockerfile }
+          - { name: texlive-full,     context: production/texlive, dockerfile: production/texlive/Dockerfile }
 
     steps:
       - name: Checkout repository

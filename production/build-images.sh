@@ -54,4 +54,4 @@ for dir in ../services/*/ cron/ nginx/; do
 done
 
 echo "Building the texlive image ... "
-docker build ../develop/texlive -t robol/overleaf-texlive-full
+docker build ./texlive -t robol/overleaf-texlive-full
