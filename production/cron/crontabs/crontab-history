@@ -1,0 +1,3 @@
+30 * * * *    /app/scripts/project-history-retry-soft.sh > /proc/1/fd/1 2>&1
+45 * * * *    /app/scripts/project-history-retry-hard.sh > /proc/1/fd/1 2>&1
+0 3 * * *     /app/scripts/project-history-flush-all.sh > /proc/1/fd/1 2>&1

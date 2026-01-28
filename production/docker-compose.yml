@@ -14,8 +14,6 @@ services:
       - production.env
       - secrets.env
     environment:
-      - TEXLIVE_IMAGE=texlive-full
-      - SANDBOXED_COMPILES=true
       - SANDBOXED_COMPILES_HOST_DIR_COMPILES=${PWD}/data/compiles
       - SANDBOXED_COMPILES_HOST_DIR_OUTPUT=${PWD}/data/output
     depends_on:
@@ -160,6 +158,12 @@ services:
       - notifications
       - project-history
       - real-time
+
+  cron:
+    image: robol/overleaf-cron
+    env_file:
+      - production.env
+      - secrets.env
 
   nginx:
     image: nginx

@@ -13,17 +13,24 @@ echo "Building with context: $(realpath $CONTEXT_DIR)"
 echo "--------------------------"
 
 # 2. Iterate through folders in ../services/
-for dir in ../services/*/ ; do
-    
+for dir in ../services/*/ cron/; do
+
     # Extract the folder name (e.g., "auth-service")
     service_name=$(basename "$dir")
     image_name="robol/overleaf-$service_name"
-    
+
     # Path to the Dockerfile relative to the script
     dockerfile_path="${dir}Dockerfile"
 
     if [ -f "$dockerfile_path" ] && [ "${service_name}" != "git-bridge" ]; then
         echo "Building $image_name..."
+
+        # Small tweaks: images not in /services need to have the context in the actual dir
+        if [ "${service_name}" = "cron" ]; then
+          CONTEXT_DIR="${dir}"
+        else
+          CONTEXT_DIR=".."
+        fi
 
         # 3. Build Command
         # -f points to the specific Dockerfile
@@ -34,9 +41,6 @@ for dir in ../services/*/ ; do
             docker build -t "$image_name:latest" -f "$dockerfile_path" "$CONTEXT_DIR"
         fi
 
-
-
-        
         # 4. Optional Version Tagging
         if [ -n "$VERSION_TAG" ]; then
             docker tag "$image_name:latest" "$image_name:$VERSION_TAG"
@@ -49,5 +53,7 @@ for dir in ../services/*/ ; do
     echo "--------------------------"
 done
 
+
+
 echo "Building the texlive image ... "
-docker build ../develop/texlive -t texlive-full
+docker build ../develop/texlive -t robol/overleaf-texlive-full
