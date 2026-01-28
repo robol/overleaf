@@ -72,3 +72,4 @@ jobs:
             ${{ steps.meta.outputs.labels }}
             org.opencontainers.image.title=Overleaf ${{ matrix.name }}
             org.opencontainers.image.description=Microservice build for Overleaf Community Edition
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
