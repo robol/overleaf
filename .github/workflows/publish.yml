@@ -1,0 +1,74 @@
+name: Publish Overleaf Images
+
+on:
+  push:
+    branches: ['main']
+    tags: ['v*']
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # --- Overleaf Services ---
+          - { name: chat,             context: ., dockerfile: services/chat/Dockerfile }
+          - { name: clsi,             context: ., dockerfile: services/clsi/Dockerfile }
+          - { name: contacts,         context: ., dockerfile: services/contacts/Dockerfile }
+          - { name: docstore,         context: ., dockerfile: services/docstore/Dockerfile }
+          - { name: document-updater, context: ., dockerfile: services/document-updater/Dockerfile }
+          - { name: filestore,        context: ., dockerfile: services/filestore/Dockerfile }
+          - { name: history-v1,       context: ., dockerfile: services/history-v1/Dockerfile }
+          - { name: notifications,    context: ., dockerfile: services/notifications/Dockerfile }
+          - { name: project-history,  context: ., dockerfile: services/project-history/Dockerfile }
+          - { name: real-time,        context: ., dockerfile: services/real-time/Dockerfile }
+          - { name: web,              context: ., dockerfile: services/web/Dockerfile, target: app }
+
+          # --- External services
+          - { name: cron,             context: production/cron,  dockerfile: cron/Dockerfile }
+          - { name: nginx,            context: production/nginx, dockerfile: nginx/Dockerfile }
+
+          # --- TeXLive ---
+          - { name: texlive-full,     context: develop/texlive, dockerfile: develop/texlive/Dockerfile }
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/overleaf-${{ matrix.name }}
+          tags: |
+            type=raw,value=latest
+            type=ref,event=tag
+            type=sha,format=short
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            org.opencontainers.image.title=Overleaf ${{ matrix.name }}
+            org.opencontainers.image.description=Microservice build for Overleaf Community Edition
