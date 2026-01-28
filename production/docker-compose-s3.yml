@@ -8,7 +8,7 @@ services:
       # - "9000:9000" # API Port
       - "127.0.0.1:9001:9001" # Console UI Port
     env_file:
-      - production.env
+      - production-s3.env
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
@@ -20,13 +20,13 @@ services:
   chat:
     image: robol/overleaf-chat:latest
     env_file:
-      - production.env
+      - production-s3.env
       - secrets.env
 
   clsi-01:
     image: robol/overleaf-clsi:latest
     env_file:
-      - production.env
+      - production-s3.env
       - secrets.env
     environment:
       - SANDBOXED_COMPILES_HOST_DIR_COMPILES=${PWD}/data/compiles/01
@@ -44,7 +44,7 @@ services:
   clsi-02:
     image: robol/overleaf-clsi:latest
     env_file:
-      - production.env
+      - production-s3.env
       - secrets.env
     environment:
       - SANDBOXED_COMPILES_HOST_DIR_COMPILES=${PWD}/data/compiles/02
@@ -65,7 +65,7 @@ services:
       - mongo
       - redis
     env_file:
-      - production.env
+      - production-s3.env
       - secrets.env
 
   docstore:
@@ -74,7 +74,7 @@ services:
       - mongo
       - redis
     env_file:
-      - production.env
+      - production-s3.env
       - secrets.env
 
 
@@ -84,7 +84,7 @@ services:
       - mongo
       - redis
     env_file:
-      - production.env
+      - production-s3.env
       - secrets.env
 
   filestore:
@@ -93,7 +93,7 @@ services:
       - mongo
       - redis
     env_file:
-      - production.env
+      - production-s3.env
       - secrets.env
     volumes:
       - ./data/filestore-public-files:/overleaf/services/filestore/public_files
@@ -104,7 +104,7 @@ services:
   history-v1:
     image: robol/overleaf-history-v1:latest
     env_file:
-      - production.env
+      - production-s3.env
       - secrets.env
     depends_on:
       - redis
@@ -129,7 +129,7 @@ services:
       - mongo
       - redis
     env_file:
-      - production.env
+      - production-s3.env
       - secrets.env
 
   project-history:
@@ -138,7 +138,7 @@ services:
       - mongo
       - redis
     env_file:
-      - production.env
+      - production-s3.env
       - secrets.env
 
   real-time:
@@ -147,7 +147,7 @@ services:
       - mongo
       - redis
     env_file:
-      - production.env
+      - production-s3.env
       - secrets.env
 
   redis:
@@ -158,7 +158,7 @@ services:
   web:
     image: robol/overleaf-web:latest
     env_file:
-      - path: production.env
+      - path: production-s3.env
         required: true
       - path: secrets.env
         required: true
@@ -195,13 +195,13 @@ services:
   cron:
     image: robol/overleaf-cron
     env_file:
-      - production.env
+      - production-s3.env
       - secrets.env
 
   nginx:
     image: robol/overleaf-nginx
     env_file:
-      - production.env
+      - production-s3.env
     volumes:
       - web-public:/overleaf/services/web/public:ro
       - ./data/output:/overleaf/services/clsi/output:ro
