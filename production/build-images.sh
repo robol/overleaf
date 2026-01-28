@@ -13,7 +13,7 @@ echo "Building with context: $(realpath $CONTEXT_DIR)"
 echo "--------------------------"
 
 # 2. Iterate through folders in ../services/
-for dir in ../services/*/ cron/; do
+for dir in ../services/*/ cron/ nginx/; do
 
     # Extract the folder name (e.g., "auth-service")
     service_name=$(basename "$dir")
@@ -26,7 +26,7 @@ for dir in ../services/*/ cron/; do
         echo "Building $image_name..."
 
         # Small tweaks: images not in /services need to have the context in the actual dir
-        if [ "${service_name}" = "cron" ]; then
+        if [ "${service_name}" = "cron" ] || [ "${service_name}" = "nginx" ]; then
           CONTEXT_DIR="${dir}"
         else
           CONTEXT_DIR=".."

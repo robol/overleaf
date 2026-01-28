@@ -8,23 +8,41 @@ services:
       - production.env
       - secrets.env
 
-  clsi:
+  clsi-01:
     image: robol/overleaf-clsi:latest
     env_file:
       - production.env
       - secrets.env
     environment:
-      - SANDBOXED_COMPILES_HOST_DIR_COMPILES=${PWD}/data/compiles
+      - SANDBOXED_COMPILES_HOST_DIR_COMPILES=${PWD}/data/compiles/01
       - SANDBOXED_COMPILES_HOST_DIR_OUTPUT=${PWD}/data/output
     depends_on:
       - mongo
       - redis
     user: root
     volumes:
-      - ${PWD}/data/compiles:/overleaf/services/clsi/compiles
+      - ${PWD}/data/compiles/01:/overleaf/services/clsi/compiles
       - ${PWD}/data/output:/overleaf/services/clsi/output
+      - ${PWD}/data/clsi-cache/01:/overleaf/services/clsi/cache
       - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
-      - ./data/clsi-cache:/overleaf/services/clsi/cache
+
+  clsi-02:
+    image: robol/overleaf-clsi:latest
+    env_file:
+      - production.env
+      - secrets.env
+    environment:
+      - SANDBOXED_COMPILES_HOST_DIR_COMPILES=${PWD}/data/compiles/02
+      - SANDBOXED_COMPILES_HOST_DIR_OUTPUT=${PWD}/data/output
+    depends_on:
+      - mongo
+      - redis
+    user: root
+    volumes:
+      - ${PWD}/data/compiles/02:/overleaf/services/clsi/compiles
+      - ${PWD}/data/output:/overleaf/services/clsi/output
+      - ${PWD}/data/clsi-cache/02:/overleaf/services/clsi/cache
+      - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
 
   contacts:
     image: robol/overleaf-contacts:latest
@@ -149,7 +167,8 @@ services:
       - mongo
       - redis
       - chat
-      - clsi
+      - clsi-01
+      - clsi-02
       - contacts
       - docstore
       - document-updater
@@ -166,10 +185,10 @@ services:
       - secrets.env
 
   nginx:
-    image: nginx
+    image: robol/overleaf-nginx
+    env_file:
+      - production.env
     volumes:
-      - ./nginx/overleaf.conf:/etc/nginx/conf.d/default.conf
-      - ./nginx/clsi.conf:/etc/nginx/conf.d/nginx.conf
       - web-public:/overleaf/services/web/public:ro
       - ./data/output:/overleaf/services/clsi/output:ro
     depends_on:

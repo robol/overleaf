@@ -7,7 +7,7 @@ function randomToken {
   cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1
 }
 
-FOLDERS="web-data sharelatex-data history-v1-buckets filestore-uploads filestore-public-files filestore-template-files clsi-cache compiles"
+FOLDERS="web-data sharelatex-data history-v1-buckets filestore-uploads filestore-public-files filestore-template-files clsi-cache clsi-cache/01 clsi-cache/02 compiles compiles/01 compiles/02"
 
 echo -n "Creating data directories ... "
 
@@ -15,7 +15,7 @@ echo -n "Creating data directories ... "
 cd data
 
 for folder in ${FOLDERS}; do
-  [ -d "${folder}" ] || mkdir ${folder}
+  [ -d "${folder}" ] || mkdir -p ${folder}
   chown 1000:1000 ${folder}
 done
 

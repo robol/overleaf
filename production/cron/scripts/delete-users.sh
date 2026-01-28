@@ -17,7 +17,7 @@ fi
 
 WEB_URL="http://${WEB_HOST}:3000"
 
-curl -X POST -q -u "${WEB_API_USER}:${WEB_API_PASS}" \
+curl -X POST -q -u "${WEB_API_USER}:${WEB_API_PASSWORD}" \
   "${WEB_URL}/internal/expire-deleted-users-after-duration"
 
 echo "Done."
