@@ -1,0 +1,23 @@
+#!/bin/bash
+
+cd /overleaf-policies
+
+mc alias set s3 http://127.0.0.1:9000 "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}"
+mc mb --ignore-existing s3/overleaf-user-files
+mc mb --ignore-existing s3/overleaf-template-files
+mc admin user add s3 \
+  "${OVERLEAF_FILESTORE_S3_ACCESS_KEY_ID}" \
+  "${OVERLEAF_FILESTORE_S3_SECRET_ACCESS_KEY}"
+mc admin policy create s3 overleaf-filestore policy-filestore.json
+mc admin policy attach s3 overleaf-filestore \
+  --user="${OVERLEAF_FILESTORE_S3_ACCESS_KEY_ID}"
+
+# history buckets, user and policy
+mc mb --ignore-existing s3/overleaf-project-blobs
+mc mb --ignore-existing s3/overleaf-chunks
+mc admin user add s3 \
+  "${OVERLEAF_HISTORY_S3_ACCESS_KEY_ID}" \
+  "${OVERLEAF_HISTORY_S3_SECRET_ACCESS_KEY}"
+mc admin policy create s3 overleaf-history policy-history.json
+mc admin policy attach s3 overleaf-history \
+  --user="${OVERLEAF_HISTORY_S3_ACCESS_KEY_ID}"
