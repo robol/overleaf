@@ -3,13 +3,13 @@ volumes:
 
 services:
   chat:
-    image: robol/chat:latest
+    image: robol/overleaf-chat:latest
     env_file:
       - production.env
       - secrets.env
 
   clsi:
-    image: robol/clsi:latest
+    image: robol/overleaf-clsi:latest
     env_file:
       - production.env
       - secrets.env
@@ -29,7 +29,7 @@ services:
       - ./data/clsi-cache:/overleaf/services/clsi/cache
 
   contacts:
-    image: robol/contacts:latest
+    image: robol/overleaf-contacts:latest
     depends_on:
       - mongo
       - redis
@@ -38,7 +38,7 @@ services:
       - secrets.env
 
   docstore:
-    image: robol/docstore:latest
+    image: robol/overleaf-docstore:latest
     depends_on:
       - mongo
       - redis
@@ -48,7 +48,7 @@ services:
 
 
   document-updater:
-    image: robol/document-updater:latest
+    image: robol/overleaf-document-updater:latest
     depends_on:
       - mongo
       - redis
@@ -57,7 +57,7 @@ services:
       - secrets.env
 
   filestore:
-    image: robol/filestore:latest
+    image: robol/overleaf-filestore:latest
     depends_on:
       - mongo
       - redis
@@ -71,7 +71,7 @@ services:
       - ./data/history-v1-buckets:/buckets
 
   history-v1:
-    image: robol/history-v1:latest
+    image: robol/overleaf-history-v1:latest
     env_file:
       - production.env
       - secrets.env
@@ -94,7 +94,7 @@ services:
       - mongo:127.0.0.1
 
   notifications:
-    image: robol/notifications:latest
+    image: robol/overleaf-notifications:latest
     depends_on:
       - mongo
       - redis
@@ -103,7 +103,7 @@ services:
       - secrets.env
 
   project-history:
-    image: robol/project-history:latest
+    image: robol/overleaf-project-history:latest
     depends_on:
       - mongo
       - redis
@@ -112,7 +112,7 @@ services:
       - secrets.env
 
   real-time:
-    image: robol/real-time:latest
+    image: robol/overleaf-real-time:latest
     depends_on:
       - mongo
       - redis
@@ -126,7 +126,7 @@ services:
       - ./data/redis-data:/data
 
   web:
-    image: robol/web:latest
+    image: robol/overleaf-web:latest
     env_file:
       - path: production.env
         required: true

@@ -17,7 +17,7 @@ for dir in ../services/*/ ; do
     
     # Extract the folder name (e.g., "auth-service")
     service_name=$(basename "$dir")
-    image_name="robol/$service_name"
+    image_name="robol/overleaf-$service_name"
     
     # Path to the Dockerfile relative to the script
     dockerfile_path="${dir}Dockerfile"
