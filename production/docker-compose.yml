@@ -96,7 +96,6 @@ services:
       - mongo
     volumes:
       - ./data/history-v1-buckets:/buckets
-      - ./config/production.json:/overleaf/services/history-v1/config/production.json:ro
 
   mongo:
     image: mongo:8.0
