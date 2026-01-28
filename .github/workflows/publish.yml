@@ -33,8 +33,8 @@ jobs:
           - { name: web,              context: ., dockerfile: services/web/Dockerfile, target: app }
 
           # --- External services
-          - { name: cron,             context: production/cron,  dockerfile: cron/Dockerfile }
-          - { name: nginx,            context: production/nginx, dockerfile: nginx/Dockerfile }
+          - { name: cron,             context: production/cron,  dockerfile: production/cron/Dockerfile }
+          - { name: nginx,            context: production/nginx, dockerfile: production/nginx/Dockerfile }
 
           # --- TeXLive ---
           - { name: texlive-full,     context: develop/texlive, dockerfile: develop/texlive/Dockerfile }
