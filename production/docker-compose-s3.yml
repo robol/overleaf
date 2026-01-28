@@ -204,7 +204,6 @@ services:
       - production-s3.env
     volumes:
       - web-public:/overleaf/services/web/public:ro
-      - ./data/output:/overleaf/services/clsi/output:ro
     depends_on:
       - web
     ports:

@@ -1,7 +1,7 @@
-FROM debian:testing-slim
+FROM debian:testing
 
 RUN apt-get update
-RUN apt-cache depends texlive-full | grep "Depends: " | grep -v -- "-doc" | sed 's/Depends: //' | xargs apt-get install -y --no-install-recommends
+RUN apt-get install -y --no-install-recommends texlive-full
 RUN apt-get install -y --no-install-recommends fontconfig inkscape pandoc python3-pygments
 
 RUN useradd tex

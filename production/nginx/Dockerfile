@@ -8,7 +8,7 @@ RUN rm /etc/nginx/conf.d/default.conf
 
 # Copy static configuration files
 COPY ./overleaf.conf /etc/nginx/conf.d/default.conf
-COPY ./clsi.conf /etc/nginx/conf.d/clsi.conf
+#COPY ./clsi.conf /etc/nginx/conf.d/clsi.conf
 
 # Create directories for the volumes you mentioned 
 # (These will be empty until mounted, but it's good practice)

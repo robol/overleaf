@@ -7,8 +7,18 @@ echo "----------------------------------------------------"
 echo "Entrypoint: Initializing clsi_proxy.conf"
 echo "CLSI_POOL variable: $CLSI_POOL"
 
+cat <<EOF > $CONF_FILE
+
+map \$request_uri \$project_id {
+    default                  0;
+    # Matches a hex string after /project/
+    "~^/project/([0-9a-fA-F]+)($|/.*)" \$1;
+}
+
+EOF
+
 # Start the upstream block
-echo "upstream backend_clsi {" > $CONF_FILE
+echo "upstream backend_clsi {" >> $CONF_FILE
 
 if [ -z "$CLSI_POOL" ]; then
     echo "DEBUG: No CLSI_POOL detected. Defaulting to clsi."
@@ -24,14 +34,14 @@ fi
 
 # Append the remaining configuration
 cat <<EOF >> $CONF_FILE
-  hash \$request_uri;
+  hash \$project_id;
 }
 
 # Define a log format that includes the upstream server address
 log_format upstream_logging '\$remote_addr - \$remote_user [\$time_local] '
                             '"\$request" \$status \$body_bytes_sent '
                             '"\$http_referer" "\$http_user_agent" '
-                            'upstream clsi proxy: \$upstream_addr';
+                            'upstream clsi proxy: \$upstream_addr - project \$project_id';
 
 server {
     listen 3013;
