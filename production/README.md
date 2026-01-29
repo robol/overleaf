@@ -20,3 +20,14 @@ sleep 5 # Wait for minio to come up - can also be checked with docker compose -f
 docker compose -f docker-compose-s3.yml exec minio /overleaf-policies/minio-setup
 docker compose -f docker-compose-s3.yml up -d
 ```
+
+# docker-compose with public images
+
+The file ```docker-compose-ghcr.yml``` is configured to use images published
+in the public repositories. Hence, it can be used by just running:
+
+```bash
+docker pull ghcr.io/robol/overleaf-texlive-full # The image should be available for compiles to work
+./initial-setup.sh # or manual directory creation ...
+docker compose -f docker-compose-ghcr.yml up -d
+```

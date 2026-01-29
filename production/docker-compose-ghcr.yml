@@ -1,0 +1,196 @@
+volumes:
+  web-public:
+
+services:
+  chat:
+    image: ghcr.io/robol/overleaf-chat:latest
+    env_file:
+      - production-ghcr.env
+      - secrets.env
+
+  clsi-01:
+    image: ghcr.io/robol/overleaf-clsi:latest
+    env_file:
+      - production-ghcr.env
+      - secrets.env
+    environment:
+      - SANDBOXED_COMPILES_HOST_DIR_COMPILES=${PWD}/data/compiles/01
+      - SANDBOXED_COMPILES_HOST_DIR_OUTPUT=${PWD}/data/output
+    depends_on:
+      - mongo
+      - redis
+    user: root
+    volumes:
+      - ${PWD}/data/compiles/01:/overleaf/services/clsi/compiles
+      - ${PWD}/data/output:/overleaf/services/clsi/output
+      - ${PWD}/data/clsi-cache/01:/overleaf/services/clsi/cache
+      - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
+
+  clsi-02:
+    image: ghcr.io/robol/overleaf-clsi:latest
+    env_file:
+      - production-ghcr.env
+      - secrets.env
+    environment:
+      - SANDBOXED_COMPILES_HOST_DIR_COMPILES=${PWD}/data/compiles/02
+      - SANDBOXED_COMPILES_HOST_DIR_OUTPUT=${PWD}/data/output
+    depends_on:
+      - mongo
+      - redis
+    user: root
+    volumes:
+      - ${PWD}/data/compiles/02:/overleaf/services/clsi/compiles
+      - ${PWD}/data/output:/overleaf/services/clsi/output
+      - ${PWD}/data/clsi-cache/02:/overleaf/services/clsi/cache
+      - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
+
+  contacts:
+    image: ghcr.io/robol/overleaf-contacts:latest
+    depends_on:
+      - mongo
+      - redis
+    env_file:
+      - production-ghcr.env
+      - secrets.env
+
+  docstore:
+    image: ghcr.io/robol/overleaf-docstore:latest
+    depends_on:
+      - mongo
+      - redis
+    env_file:
+      - production-ghcr.env
+      - secrets.env
+
+
+  document-updater:
+    image: ghcr.io/robol/overleaf-document-updater:latest
+    depends_on:
+      - mongo
+      - redis
+    env_file:
+      - production-ghcr.env
+      - secrets.env
+
+  filestore:
+    image: ghcr.io/robol/overleaf-filestore:latest
+    depends_on:
+      - mongo
+      - redis
+    env_file:
+      - production-ghcr.env
+      - secrets.env
+    volumes:
+      - ./data/filestore-public-files:/overleaf/services/filestore/public_files
+      - ./data/filestore-template-files:/overleaf/services/filestore/template_files
+      - ./data/filestore-uploads:/overleaf/services/filestore/uploads
+      - ./data/history-v1-buckets:/buckets
+
+  history-v1:
+    image: ghcr.io/robol/overleaf-history-v1:latest
+    env_file:
+      - production-ghcr.env
+      - secrets.env
+    depends_on:
+      - redis
+      - mongo
+    volumes:
+      - ./data/history-v1-buckets:/buckets
+
+  mongo:
+    image: mongo:8.0
+    command: --replSet overleaf
+    volumes:
+      - ./data/mongo-data:/data/db
+      - ./bin/shared/mongodb-init-replica-set.js:/docker-entrypoint-initdb.d/mongodb-init-replica-set.js
+    environment:
+      MONGO_INITDB_DATABASE: sharelatex
+    extra_hosts:
+      - mongo:127.0.0.1
+
+  notifications:
+    image: ghcr.io/robol/overleaf-notifications:latest
+    depends_on:
+      - mongo
+      - redis
+    env_file:
+      - production-ghcr.env
+      - secrets.env
+
+  project-history:
+    image: ghcr.io/robol/overleaf-project-history:latest
+    depends_on:
+      - mongo
+      - redis
+    env_file:
+      - production-ghcr.env
+      - secrets.env
+
+  real-time:
+    image: ghcr.io/robol/overleaf-real-time:latest
+    depends_on:
+      - mongo
+      - redis
+    env_file:
+      - production-ghcr.env
+      - secrets.env
+
+  redis:
+    image: redis:6
+    volumes:
+      - ./data/redis-data:/data
+
+  web:
+    image: ghcr.io/robol/overleaf-web:latest
+    env_file:
+      - path: production-ghcr.env
+        required: true
+      - path: secrets.env
+        required: true
+      - path: oauth2.env
+        required: false
+    environment:
+      - APP_NAME=Overleaf Community Edition
+      - ENABLED_LINKED_FILE_TYPES=project_file,project_output_file
+      - EMAIL_CONFIRMATION_DISABLED=true
+      - OVERLEAF_ALLOW_PUBLIC_ACCESS=true
+    command: ["node", "app.mjs"]
+    volumes:
+      - ./data/sharelatex-data:/var/lib/overleaf
+      - ./data/web-data:/overleaf/services/web/data
+      - ./data/filestore-uploads:/overleaf/services/web/data/uploads
+      - ./config/production.json:/overleaf/services/web/config/production.json:ro
+      - ./config/settings.js:/overleaf/services/web/config/settings.production.js:ro
+      - web-public:/overleaf/services/web/public
+    depends_on:
+      - mongo
+      - redis
+      - chat
+      - clsi-01
+      - clsi-02
+      - contacts
+      - docstore
+      - document-updater
+      - filestore
+      - history-v1
+      - notifications
+      - project-history
+      - real-time
+
+  cron:
+    image: ghcr.io/robol/overleaf-cron
+    env_file:
+      - production-ghcr.env
+      - secrets.env
+
+  nginx:
+    image: ghcr.io/robol/overleaf-nginx
+    env_file:
+      - production-ghcr.env
+    volumes:
+      - web-public:/overleaf/services/web/public:ro
+    depends_on:
+      - web
+    ports:
+      - 80:80
+
