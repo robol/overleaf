@@ -150,9 +150,6 @@ services:
       - path: oauth2.env
         required: false
     environment:
-      - APP_NAME=Overleaf Community Edition
-      - ENABLED_LINKED_FILE_TYPES=project_file,project_output_file
-      - EMAIL_CONFIRMATION_DISABLED=true
       - OVERLEAF_ALLOW_PUBLIC_ACCESS=true
     command: ["node", "app.mjs"]
     volumes:

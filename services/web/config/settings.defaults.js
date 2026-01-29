@@ -632,6 +632,25 @@ module.exports = {
   //		AWSAccessKeyID: ""
   //		AWSSecretKey: ""
 
+  // We allow configuration of emails through environment variables, as for server CE
+  email: process.env.EMAIL_FROM_ADDRESS ? {
+    fromAddress: process.env.EMAIL_FROM_ADDRESS,
+    replyTo: process.env.EMAIL_REPLY_TO || '',
+    driver: 'smtp',
+    parameters: {
+       host: process.env.EMAIL_SMTP_HOST,
+       port: process.env.EMAIL_SMTP_PORT,
+       secure: process.env.EMAIL_SMTP_SECURE == 'true',
+       ignoreTLS: process.env.EMAIL_SMTP_IGNORE_TLS == 'true',
+       name: process.env.EMAIL_SMTP_NAME,
+       logger: process.env.EMAIL_SMTP_LOGGER == 'true',
+    },
+
+    template: {
+      customFooter: process.env.CUSTOM_EMAIL_FOOTER || '',
+    },
+  } : {},
+
   // For legacy reasons, we need to populate this object.
   sentry: {},
 
