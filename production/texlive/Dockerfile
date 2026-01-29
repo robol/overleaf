@@ -1,8 +1,7 @@
-FROM debian:testing
+FROM alpine:latest
 
-RUN apt-get update
-RUN apt-get install -y --no-install-recommends texlive-full
-RUN apt-get install -y --no-install-recommends fontconfig inkscape pandoc python3-pygments
+RUN apk add --no-cache texlive-full
+RUN apk add --no-cache pandoc py3-pygments fontconfig biber
 
-RUN useradd tex
+RUN adduser -D tex
 USER tex
