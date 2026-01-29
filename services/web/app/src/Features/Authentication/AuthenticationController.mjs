@@ -226,9 +226,19 @@ const AuthenticationController = {
       const openid_profile = await response.json();
 
       const email = openid_profile.email;
-      let cn_pieces = openid_profile.name.split(' ');
-      let first_name = cn_pieces[0];
-      let last_name = cn_pieces.slice(1).join(' ');
+      let first_name = '';
+      let last_name = '';
+      if (openid_profile.given_name) {
+        first_name = openid_profile.given_name;
+      }
+      if (openid_profile.family_name) {
+        last_name = openid_profile.family_name;
+      }
+      if (openid_profile.name) {
+        let cn_pieces = openid_profile.name.split(' ');
+        first_name = cn_pieces[0];
+        last_name = cn_pieces.slice(1).join(' ');
+      }
 
       const user = await User.findOne({ email: email });
       if (user) {
