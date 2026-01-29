@@ -349,13 +349,11 @@ async function updateUserSettings(req, res, next) {
     throw new OError('problem updating user settings', { userId })
   }
 
-  // If the user is OpenID managed, we do not allow updating the user details
+  // If the user is OpenID managed, we do not allow updating the user email
   if (user.openid_managed) {
-    return HttpErrorHandler.forbidden(
-      req,
-      res,
-      req.i18n.translate('cannot_update_details_openid_managed')
-    )
+    if (body.email != null) {
+        body.email = user.email
+    }
   }
 
   if (body.first_name != null) {
