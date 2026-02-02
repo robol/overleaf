@@ -634,6 +634,9 @@ async function wordcount(projectId, userId, filename, image) {
     throw new Errors.InvalidParameter('invalid image')
   }
 
+  const defaultImageName =
+    Settings.clsi && Settings.clsi.docker && Settings.clsi.docker.image
+
   try {
     await fsPromises.mkdir(compileDir, { recursive: true })
   } catch (err) {
@@ -649,7 +652,7 @@ async function wordcount(projectId, userId, filename, image) {
       compileName,
       command,
       compileDir,
-      image,
+      image || defaultImageName,
       timeout,
       {},
       compileGroup

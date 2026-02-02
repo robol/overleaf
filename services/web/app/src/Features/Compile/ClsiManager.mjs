@@ -928,7 +928,9 @@ async function wordCount(projectId, userId, file, limits, clsiserverid) {
     'wordcount'
   )
   url.searchParams.set('file', filename)
-  url.searchParams.set('image', req.compile.options.imageName)
+  if (req.compile.options.imageName) {
+    url.searchParams.set('image', req.compile.options.imageName)
+  }
 
   const opts = {
     method: 'GET',
