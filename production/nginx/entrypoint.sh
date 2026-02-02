@@ -48,6 +48,10 @@ server {
     server_name clsi-pool;
     client_max_body_size 100M;
 
+    proxy_read_timeout 300s;
+    proxy_connect_timeout 300s;
+    proxy_send_timeout 300s;
+
     access_log /var/log/nginx/access.log upstream_logging;
 
     location / {
