@@ -46,6 +46,7 @@ log_format upstream_logging '\$remote_addr - \$remote_user [\$time_local] '
 server {
     listen 3013;
     server_name clsi-pool;
+    client_max_body_size 100M;
 
     access_log /var/log/nginx/access.log upstream_logging;
 
