@@ -969,7 +969,9 @@ async function syncTeX(
     'compileFromClsiCache',
     compileFromClsiCache && ['alpha', 'priority'].includes(compileGroup)
   )
-  url.searchParams.set('imageName', imageName)
+  if (imageName) {
+    url.searchParams.set('imageName', imageName)
+  }
   for (const [key, value] of Object.entries(validatedOptions)) {
     url.searchParams.set(key, value)
   }
