@@ -22,7 +22,6 @@ jobs:
           # --- Overleaf Services ---
           - { name: chat,             context: ., dockerfile: services/chat/Dockerfile }
           - { name: clsi,             context: ., dockerfile: services/clsi/Dockerfile }
-          - { name: contacts,         context: ., dockerfile: services/contacts/Dockerfile }
           - { name: docstore,         context: ., dockerfile: services/docstore/Dockerfile }
           - { name: document-updater, context: ., dockerfile: services/document-updater/Dockerfile }
           - { name: filestore,        context: ., dockerfile: services/filestore/Dockerfile }
