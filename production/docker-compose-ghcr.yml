@@ -44,15 +44,6 @@ services:
       - ${PWD}/data/clsi-cache/02:/overleaf/services/clsi/cache
       - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
 
-  contacts:
-    image: ghcr.io/robol/overleaf-contacts:latest
-    depends_on:
-      - mongo
-      - redis
-    env_file:
-      - production-ghcr.env
-      - secrets.env
-
   docstore:
     image: ghcr.io/robol/overleaf-docstore:latest
     depends_on:
@@ -168,7 +159,6 @@ services:
       - chat
       - clsi-01
       - clsi-02
-      - contacts
       - docstore
       - document-updater
       - filestore
