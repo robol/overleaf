@@ -721,6 +721,7 @@ describe('SubscriptionViewModelBuilder', function () {
           isEligibleForGroupPlan: true,
           isEligibleForPause: false,
           isEligibleForDowngradeUpsell: true,
+          isMigratedFromRecurly: false,
         })
       })
 
@@ -1001,7 +1002,7 @@ describe('SubscriptionViewModelBuilder', function () {
           {
             subscription: ctx.paymentRecord,
             nextPlanCode: ctx.groupPlanCode,
-            nextPlanName: 'Group Collaborator (Annual) 4 licenses',
+            nextPlanName: 'Standard group',
             nextPlanPrice: 1400,
             nextAddOns: [
               new PaymentProviderSubscriptionAddOn({

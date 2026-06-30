@@ -52,6 +52,11 @@ export default {
       RateLimiterMiddleware.rateLimit(rateLimiters.exportTeamCsv),
       UserMembershipController.exportCsv
     )
+    webRouter.get(
+      '/manage/groups/:id/users',
+      UserMembershipMiddleware.requireEntityAccessOrAdminAccess('groupUsers'),
+      UserMembershipController.manageGroupUsers
+    )
 
     // group managers routes
     webRouter.get(
@@ -82,17 +87,17 @@ export default {
     // institution members routes
     webRouter.get(
       '/manage/institutions/:id/managers',
-      UserMembershipMiddleware.requireInstitutionManagementAccess,
+      UserMembershipMiddleware.requireInstitutionManagerAccess,
       UserMembershipController.manageInstitutionManagers
     )
     webRouter.post(
       '/manage/institutions/:id/managers',
-      UserMembershipMiddleware.requireInstitutionManagementAccess,
+      UserMembershipMiddleware.requireInstitutionManagerManagement,
       UserMembershipController.add
     )
     webRouter.delete(
       '/manage/institutions/:id/managers/:userId',
-      UserMembershipMiddleware.requireInstitutionManagementAccess,
+      UserMembershipMiddleware.requireInstitutionManagerManagement,
       UserMembershipController.remove
     )
 

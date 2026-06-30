@@ -9,6 +9,8 @@ import ProjectDeleter from '../app/src/Features/Project/ProjectDeleter.mjs'
 import SplitTestManager from '../app/src/Features/SplitTests/SplitTestManager.mjs'
 import UserDeleter from '../app/src/Features/User/UserDeleter.mjs'
 import UserRegistrationHandler from '../app/src/Features/User/UserRegistrationHandler.mjs'
+import HistoryManager from '../app/src/Features/History/HistoryManager.mjs'
+import ProjectCreationHandler from '../app/src/Features/Project/ProjectCreationHandler.mjs'
 
 const MONOREPO = Path.dirname(
   Path.dirname(Path.dirname(Path.dirname(fileURLToPath(import.meta.url))))
@@ -16,7 +18,7 @@ const MONOREPO = Path.dirname(
 
 /**
  * @param {string} email
- * @return {Promise<void>}
+ * @return {Promise<string>}
  */
 async function createUser(email) {
   const user = await UserRegistrationHandler.promises.registerNewUser({
@@ -26,23 +28,31 @@ async function createUser(email) {
   const features = email.startsWith('free+')
     ? Settings.defaultFeatures
     : Settings.features.professional
+  const isAdmin = email.startsWith('admin+')
+  let adminRoles = []
+  if (email.startsWith('admin+finance')) {
+    adminRoles = ['finance']
+  } else if (isAdmin) {
+    adminRoles = ['engineering']
+  }
   await db.users.updateOne(
     { _id: user._id },
     {
       $set: {
         // Set admin flag.
-        isAdmin: email.startsWith('admin+'),
-        adminRoles: email.startsWith('admin+') ? ['engineering'] : [],
+        isAdmin,
+        adminRoles,
         // Disable spell-checking for performance and flakiness reasons.
         'ace.spellCheckLanguage': '',
         // Override features.
         features,
         featuresOverrides: [{ features }],
-        // disable Writefull
-        'writefull.enabled': false,
+        // disable AI features
+        'aiFeatures.enabled': false,
       },
     }
   )
+  return user._id.toString()
 }
 
 /**
@@ -63,16 +73,31 @@ async function deleteUser(email) {
   const projects = await db.deletedProjects
     .find(
       { 'deleterData.deletedProjectOwnerId': user._id },
-      { projection: { deletedProjectId: 1 } }
+      { projection: { 'deleterData.deletedProjectId': 1 } }
     )
     .toArray()
   await promiseMapWithLimit(
     10,
-    projects.map(p => p.deletedProjectId),
+    projects.map(p => p.deleterData.deletedProjectId),
     ProjectDeleter.promises.expireDeletedProject
   )
   // Hard-delete the user.
   await UserDeleter.promises.expireDeletedUser(user._id)
+}
+
+export async function createProjectWithOldHistoryId(
+  userId,
+  projectName = 'old history id'
+) {
+  const historyId = parseInt(
+    await HistoryManager.promises.initializeProject(),
+    10
+  )
+  await ProjectCreationHandler.promises.createExampleProject(
+    userId,
+    projectName,
+    { overleaf: { history: { id: historyId } } }
+  )
 }
 
 /**
@@ -86,7 +111,11 @@ async function provisionUser(email) {
     )
   }
   await deleteUser(email)
-  await createUser(email)
+  const userId = await createUser(email)
+
+  if (email === 'user+old-history-id@example.com') {
+    await createProjectWithOldHistoryId(userId)
+  }
 }
 
 async function provisionUsers() {
@@ -110,7 +139,7 @@ async function purgeNewUsers() {
   )
 }
 
-async function provisionSplitTests() {
+export async function provisionSplitTests(merge = false, extraSplitTests = []) {
   const backup = Path.join(
     MONOREPO,
     'backup',
@@ -130,11 +159,39 @@ async function provisionSplitTests() {
   // Imported from production via https://www.overleaf.com/admin/split-test -> "Copy all split tests" -> "Copy for E2E test setup"
   const SPLIT_TESTS = JSON.parse(
     await fs.promises.readFile(
-      Path.join(MONOREPO, 'tools/saas-e2e/split-tests.json')
+      Path.join(MONOREPO, 'tools/saas-e2e/split-tests.json'),
+      'utf-8'
     )
   )
+  // Add WIP split test, we can update the JSON blob once this is in production
+  SPLIT_TESTS.push({
+    name: 'zip-from-history',
+    versions: [
+      {
+        versionNumber: 1,
+        createdAt: '2026-02-25T14:55:31.260Z',
+        active: true,
+        analyticsEnabled: false,
+        phase: 'release',
+        variants: [
+          {
+            name: 'enabled',
+            rolloutPercent: 0,
+            rolloutStripes: [],
+          },
+        ],
+      },
+    ],
+  })
   console.log(`> Importing ${SPLIT_TESTS.length} split-tests from production.`)
-  await SplitTestManager.replaceSplitTests(SPLIT_TESTS)
+  if (merge) {
+    await SplitTestManager.mergeSplitTests(SPLIT_TESTS, false)
+  } else {
+    await SplitTestManager.replaceSplitTests(SPLIT_TESTS)
+  }
+  if (extraSplitTests.length > 0) {
+    await SplitTestManager.mergeSplitTests(extraSplitTests, false)
+  }
 }
 
 async function checkNoTableScan() {
@@ -166,12 +223,7 @@ async function main() {
   await Promise.all([purgeNewUsers(), provisionUsers(), provisionSplitTests()])
 }
 
-await main()
-await GracefulShutdown.gracefulShutdown(
-  {
-    close(cb) {
-      cb()
-    },
-  },
-  'SIGTERM'
-)
+if (import.meta.main) {
+  await main()
+  await GracefulShutdown.gracefulShutdown()
+}
