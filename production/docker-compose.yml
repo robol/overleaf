@@ -188,6 +188,8 @@ services:
       - web-public:/overleaf/services/web/public:ro
     depends_on:
       - web
+      - clsi-01
+      - clsi-02
     ports:
       - 80:80
 

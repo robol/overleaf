@@ -28,6 +28,7 @@ echo "OT_JWT_AUTH_KEY=$(randomToken)"  >  secrets.env
 echo "SESSION_SECRET=$(randomToken)"   >> secrets.env
 echo "WEB_API_USER=$(randomToken)"     >> secrets.env
 echo "WEB_API_PASSWORD=$(randomToken)" >> secrets.env
+echo "OVERLEAF_INVITE_TOKEN_SECRET=$(randomToken)" >> secrets.env
 v1=$(randomToken)
 echo "STAGING_PASSWORD=${v1}"          >> secrets.env
 echo "V1_HISTORY_PASSWORD=${v1}"       >> secrets.env
