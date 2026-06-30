@@ -1,13 +1,14 @@
-const { promisify } = require('node:util')
-const Settings = require('@overleaf/settings')
-const logger = require('@overleaf/logger')
-const Docker = require('dockerode')
+import { promisify } from 'node:util'
+import crypto from 'node:crypto'
+import Path from 'node:path'
+
+import Settings from '@overleaf/settings'
+import logger from '@overleaf/logger'
+import Docker from 'dockerode'
+import async from 'async'
+import _ from 'lodash'
+
 const dockerode = new Docker()
-const crypto = require('node:crypto')
-const async = require('async')
-const LockManager = require('./DockerLockManager')
-const Path = require('node:path')
-const _ = require('lodash')
 
 const ONE_HOUR_IN_MS = 60 * 60 * 1000
 logger.debug('using docker runner')
@@ -24,8 +25,13 @@ const DockerRunner = {
     timeout,
     environment,
     compileGroup,
+    cwd,
     callback
   ) {
+    if (callback == null && typeof cwd === 'function') {
+      callback = cwd
+      cwd = null
+    }
     command = command.map(arg =>
       arg.toString().replace('$COMPILE_DIR', '/compile')
     )
@@ -80,7 +86,8 @@ const DockerRunner = {
       volumes,
       timeout,
       environment,
-      compileGroup
+      compileGroup,
+      cwd
     )
     const fingerprint = DockerRunner._fingerprintContainer(options)
     const name = `project-${projectId}-${fingerprint}`
@@ -121,6 +128,9 @@ const DockerRunner = {
   },
 
   kill(containerId, callback) {
+    if (callback == null) {
+      callback = function () {}
+    }
     logger.debug({ containerId }, 'sending kill signal to container')
     const container = dockerode.getContainer(containerId)
     container.kill(error => {
@@ -196,6 +206,7 @@ const DockerRunner = {
               err.code = exitCode
               return callback(err)
             }
+            output.exitCode = exitCode
             containerReturned = true
             logger.debug(
               // The seccomp policy is very large. Avoid logging it. _.omit deep clones.
@@ -215,7 +226,8 @@ const DockerRunner = {
     volumes,
     timeout,
     environment,
-    compileGroup
+    compileGroup,
+    cwd
   ) {
     const timeoutInSeconds = timeout / 1000
 
@@ -243,7 +255,7 @@ const DockerRunner = {
     const options = {
       Cmd: command,
       Image: image,
-      WorkingDir: '/compile',
+      WorkingDir: cwd ? Path.join('/compile', cwd) : '/compile',
       NetworkDisabled: true,
       Memory: 1024 * 1024 * 1024 * 1024, // 1 Gb
       User: Settings.clsi.docker.user,
@@ -308,17 +320,7 @@ const DockerRunner = {
   },
 
   startContainer(options, volumes, attachStreamHandler, callback) {
-    LockManager.runWithLock(
-      options.name,
-      releaseLock =>
-        DockerRunner._startContainer(
-          options,
-          volumes,
-          attachStreamHandler,
-          releaseLock
-        ),
-      callback
-    )
+    DockerRunner._startContainer(options, volumes, attachStreamHandler, callback)
   },
 
   // Check that volumes exist and are directories
@@ -487,14 +489,9 @@ const DockerRunner = {
     // async exception, but if you delete by id it just does a normal
     // error callback. We fall back to deleting by name if no id is
     // supplied.
-    LockManager.runWithLock(
-      containerName,
-      releaseLock =>
-        DockerRunner._destroyContainer(
-          containerId || containerName,
-          shouldForce,
-          releaseLock
-        ),
+    DockerRunner._destroyContainer(
+      containerId || containerName,
+      shouldForce,
       callback
     )
   },
@@ -547,7 +544,6 @@ const DockerRunner = {
         const { name, id, ttl } = DockerRunner.examineOldContainer(container)
         if (name.slice(0, 9) === '/project-' && ttl <= 0) {
           // strip the / prefix
-          // the LockManager uses the plain container name
           const plainName = name.slice(1)
           jobs.push(cb =>
             DockerRunner.destroyContainer(plainName, id, false, () => cb())
@@ -602,8 +598,9 @@ const DockerRunner = {
 
 DockerRunner.startContainerMonitor()
 
-module.exports = DockerRunner
-module.exports.promises = {
+DockerRunner.promises = {
   run: promisify(DockerRunner.run),
   kill: promisify(DockerRunner.kill),
 }
+
+export default DockerRunner

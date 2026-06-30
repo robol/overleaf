@@ -65,14 +65,6 @@ describe('DockerRunner', () => {
 
     vi.doMock('../../../app/js/LastProjectAccess', () => ctx.LastProjectAccess)
 
-    vi.doMock('../../../app/js/LockManager', () => ({
-      default: {
-        runWithLock(key, runner, callback) {
-          return runner(callback)
-        },
-      },
-    }))
-
     ctx.DockerRunner = (await import(modulePath)).default
     ctx.Docker = Docker
     ctx.getContainer = Docker.prototype.getContainer
@@ -634,7 +626,9 @@ describe('DockerRunner', () => {
     })
 
     it('should call the callback with the output', ctx => {
-      ctx.callback.calledWith(null, ctx.output).should.equal(true)
+      ctx.callback
+        .calledWith(null, { ...ctx.output, exitCode: ctx.exitCode })
+        .should.equal(true)
     })
   })
 
